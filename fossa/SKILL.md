@@ -38,6 +38,7 @@ enc() { jq -rn --arg v "$1" '$v|@uri'; }
 | Fix a wrong license/copyright on a dependency; conclude a license               | `references/license-corrections.md`   |
 | Fix an unresolved/misidentified dependency; author fossa-deps; add a custom dep | `references/dependency-fixes.md`      |
 | Look up a package/coordinate in FOSSA's registry; locator grammar               | `references/packages.md`              |
+| Review copied-OSS-code snippet matches (AI-code guardrails, vendored C/C++)     | `references/snippets.md`              |
 | Read or update policies; project settings; release groups                       | `references/policies-and-projects.md` |
 
 ## Ground rules (apply to every workflow)

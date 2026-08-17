@@ -2,7 +2,7 @@
 
 ## Is my scan done?
 
-"Done" has three stages, each with its own endpoint. `{REV}` = URL-encoded revision locator (`custom+1234/my-project$main`). These are the same endpoints the official `fossa` CLI polls for `fossa test` — stable for years, but not in the published API spec.
+Scans are produced by the FOSSA CLI (`fossa analyze -p <project> -r <revision>`) or the GitHub/Quick-Import integrations; small projects often finish before your first poll, so poll immediately rather than sleeping first. "Done" has three stages, each with its own endpoint. `{REV}` = URL-encoded revision locator (`custom+1234/my-project$main`). These are the same endpoints the official `fossa` CLI polls for `fossa test` — stable for years, but not in the published API spec.
 
 **Stage 1 — analysis/build finished:**
 
@@ -47,7 +47,8 @@ GET /api/v2/issues?category={licensing|vulnerability|quality}&count=100&page=1
 ```
 
 - **`category` is required** — omitting it is a 400 validation error.
-- Scope to a project/revision with `scope[type]` + `scope[id]` (same scoping the FOSSA UI's issues page URL carries), or filter by `status`, `severity`, package managers, labels, dates. `sort` supported.
+- **Per-project issue counts, the easy way**: `GET /api/v2/projects?title={name}` returns each project with inline counts — `"issues": {"total", "licensing", "security", "quality"}` — one call, no scoping gymnastics (live-verified).
+- Server-side scoping on this LIST endpoint accepts `scope[type]` of `global` | `project` | `releaseGroup` with **numeric** ids (locator strings are rejected as NaN) — and those numeric ids aren't exposed in normal API responses, so in practice: use the v2-projects counts above for totals, and filter detail rows client-side via each issue's `projects` array. Severity filter works org-wide: `severity[]=critical`. `sort` supported.
 - Response: `{ "issues": [ { "id", "type", "source", "projects", "statuses", "license", "createdAt", "url", … } ], "total": … }`. `source` is the offending dependency; `projects` is where it appears.
 - **A 202 response means the underlying scan is still running** — this endpoint tells you to come back, it is not an error.
 - `csv=true` streams the same result as CSV — handy for handing a triage sheet to a human.
@@ -77,6 +78,7 @@ curl -s -X PUT -H "Authorization: Bearer $FOSSA_API_KEY" -H "Content-Type: appli
 ```
 
 - `type`: `"ignore"` | `"unignore"` (also `"issueException"` for exception rules).
+- **Blast radius — an issue id spans projects.** A v2 issue id aggregates every instance of that issue across your org (`statuses: {"active": N, "ignored": M}` counts them). An `ids[]`-only ignore flips **all instances org-wide** — the response's `count` tells you how many it touched (live-verified: one id, 49 instances, all flipped). To suppress only one project's instance, add `scope[type]=project&scope[id]={url-encoded project locator}` to the query (verified: `count: 1`, other projects untouched). `scope.type` accepts `project` or `global` on the mutation — not `revision`.
 - **Always target explicit `ids[]` you have read first.** Omitting `ids[]` targets _everything matching the query filters_ — powerful for "ignore all issues from this dep across projects," dangerous when the filter is broader than you think. Read the list with the same query, show the user the count, then mutate.
 - Ignoring an issue suppresses it; it does not fix the underlying data. If the real problem is a wrong/missing license, correct the license instead — the issue then clears on rescan with the data actually right.
 
