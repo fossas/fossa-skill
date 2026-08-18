@@ -1,7 +1,7 @@
 {
   "_meta": {
     "purpose": "Machine-readable map: every endpoint/contract the skill documents → its code anchors. The keep-current pipeline (iris: agents/scripts/fossa-skill-currency.sh) diffs these anchors against FOSSA@origin/develop + fossa-cli@origin/master; drift triggers an autonomous skill-update run.",
-    "last_verified": {"FOSSA": "41c79c7a6f", "fossa-cli": "52fed927"},
+    "last_verified": {"FOSSA": "41c79c7a6f", "fossa-cli": "19280416"},
     "verified_on": "2026-08-17"
   },
   "anchors": [
