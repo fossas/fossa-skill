@@ -38,7 +38,7 @@ POST /api/packages/{url-encoded package locator}/rules
 ## What happens after a block
 
 1. **Package Index counts update immediately** (computed live from rules).
-2. **Issues arrive on the next scan, not instantly** — a policy edit does not trigger rescans; each revision picks up the `blacklisted_dependency` quality issue on its next build/issue-scan. Don't report "no issue appeared" as a failed block — check again after the project next scans.
+2. **Issues arrive on the next scan, not instantly** — blocking via this packages route does not trigger rescans; each revision picks up the `blacklisted_dependency` quality issue on its next build/issue-scan. Don't report "no issue appeared" as a failed block — check again after the project next scans. (Unblocking via the policy-rules DELETE below is different: that route DOES auto-queue an org-wide issue rescan.)
 3. The rule bites every project whose **effective** quality policy carries it (project's quality policy, else the org default) with quality scanning enabled.
 4. Once the issue exists, `fossa test` fails the revision like any other issue — that's the CI gate.
 

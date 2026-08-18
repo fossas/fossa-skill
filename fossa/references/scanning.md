@@ -26,7 +26,7 @@ Walks the directory, discovers projects per ecosystem (30+ strategies: npm/yarn/
 | Flag | What it finds | Data uploaded | Notes |
 |---|---|---|---|
 | `--detect-vendored` | Whole vendored OSS libraries (VSI) | SHA-256 file fingerprints | ~35k-file soft limit; direct deps only |
-| `--snippet-scan` | Copied OSS **snippets** in your files | Fingerprints + matched files' full content (30-day retention) | Enterprise + org enablement; summary line: "Unique Files with matches found: N" |
+| `--snippet-scan` | Copied OSS **snippets** in your files | Fingerprints + matched files' full content (30-day retention) | Enterprise + org enablement; incompatible with `--output`; summary line: "Unique Files with matches found: N" |
 | `--x-vendetta` | Vendored OSS, holistic (experimental) | MD5 file hashes only | Incompatible with `--output` (hard error) |
 
 Plus `--detect-dynamic <binary>` (dynamically-linked deps, direct+transitive) and org-configurable first-party license scans.
