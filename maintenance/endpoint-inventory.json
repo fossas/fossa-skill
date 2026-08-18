@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "purpose": "Machine-readable map: every endpoint/contract the skill documents → its code anchors. The keep-current pipeline (iris: agents/scripts/fossa-skill-currency.sh) diffs these anchors against FOSSA@origin/develop + fossa-cli@origin/master; drift triggers an autonomous skill-update run.",
+    "last_verified": {"FOSSA": "41c79c7a6f", "fossa-cli": "52fed927"},
+    "verified_on": "2026-08-17"
+  },
+  "anchors": [
+    {"claim": "cli scan-status trio (latest_build/issues/dependencies-cache)", "skill_file": "fossa/references/scans-and-issues.md", "code": ["routes/cli/v0.ts"]},
+    {"claim": "issues v2 list+mutation params, scope semantics, blast radius", "skill_file": "fossa/references/scans-and-issues.md", "code": ["routes/issuesV2/index.ts", "routes/issuesV2/validators/general.ts", "routes/issuesV2/validators/request.ts", "routes/issuesV2/validators/filters.ts", "modules/IssueManagerV2/utils/validate.ts", "shared/issuesV2/request.ts"]},
+    {"claim": "attribution/report endpoints + formats", "skill_file": "fossa/references/reports.md", "code": ["routes/revisions/revisions.ts", "docs/swagger/paths/revisions/locator.attribution.json.yaml"]},
+    {"claim": "project correction contract (licenses array-of-arrays, parentRevisionLocator)", "skill_file": "fossa/references/license-corrections.md", "code": ["routes/projects/index.ts", "typings/api.d.ts", "modules/ProjectCorrectionManager/index.ts"]},
+    {"claim": "license conclusions conclude/unconclude + scopes", "skill_file": "fossa/references/license-corrections.md", "code": ["routes/licenseConclusions/licenseConclusions.ts", "routes/licenseConclusions/validators.ts"]},
+    {"claim": "manual dependency add/replace/user shapes + resolve/ignore/delete", "skill_file": "fossa/references/dependency-fixes.md", "code": ["routes/revisions/revisionsValidators.ts", "routes/revisions/revisions.ts"]},
+    {"claim": "registry search + v2 dependency metadata", "skill_file": "fossa/references/packages.md", "code": ["routes/registrySearch/index.ts", "routes/dependenciesV2/index.ts"]},
+    {"claim": "policies CRUD surface", "skill_file": "fossa/references/policies-and-projects.md", "code": ["routes/policies/index.ts"]},
+    {"claim": "release groups incl. release PUT semantics + async attribution", "skill_file": "fossa/references/policies-and-projects.md", "code": ["routes/projectGroups.ts", "modules/ReleaseGroupManager/index.ts"]},
+    {"claim": "projects v1/v2 list+get+update, revisions branch-grouping, inline issue counts", "skill_file": "fossa/references/policies-and-projects.md", "code": ["routes/projects/index.ts", "routes/projectsV2/index.ts", "shared/projectsV2/common.ts"]},
+    {"claim": "snippets endpoints + entitlement + error semantics", "skill_file": "fossa/references/snippets.md", "code": ["routes/snippets/index.ts", "modules/SnippetManager/errors/MissingSnippetAnalysisError.ts", "shared/settings/project/snippets/index.ts"]},
+    {"claim": "snippet-scan CLI verification line", "skill_file": "fossa/references/snippets.md", "repo": "fossa-cli", "code": ["src/App/Fossa/Ficus/Analyze.hs", "src/App/Fossa/Config/Analyze.hs"]},
+    {"claim": "fossa-deps schema (pypi/maven/deb fields)", "skill_file": "fossa/references/dependency-fixes.md", "repo": "fossa-cli", "code": ["src/App/Fossa/ManualDeps.hs"]},
+    {"claim": "push-only vs full token allowlist", "skill_file": "fossa/SKILL.md", "code": ["routes/pushOnlyTokenEndpointAllowlist.ts", "routes/cli/v0.ts"]},
+    {"claim": "published-spec documented/informal labels", "skill_file": "*", "code": ["docs/swagger/api.yaml"]}
+  ]
+}
