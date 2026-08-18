@@ -53,7 +53,11 @@ GET /api/v2/issues?category={licensing|vulnerability|quality}&count=100&page=1
 - **A 202 response means the underlying scan is still running** — this endpoint tells you to come back, it is not an error.
 - `csv=true` streams the same result as CSV — handy for handing a triage sheet to a human.
 - Single issue: `GET /api/v2/issues/{issueId}`.
-- Paginate: page caps vary by endpoint (up to 1000 here) — always loop pages until you've collected `total` rather than trusting one page.
+- **The list body has NO total count** — count via `GET /api/v2/issues/statuses` (same category/scope/filter params) → `{"issues": {"active", "ignored"}, "revisions": {...}}`; `issues` = issue instances, `revisions` = affected packages (different numbers — pick deliberately).
+- Filters nest under `filter[...]`: `filter[severity][]` (critical|high|medium|low|unknown), `filter[hasFix][]` (has_fix|no_fix), `filter[type][]`, `filter[depths][]` (direct|deep), `filter[containerLayers][]` (**`baseLayer`|`otherLayer`** — note the deps endpoint spells the same idea `layerDepth[]=base|other`), `filter[packageManagers][]`, `filter[search]`, `filter[foundAfter]`/`filter[foundBefore]`, `filter[epss][...]`, CVSS vector filters, `filter[ignoreReason][]`. Values within one key OR; keys AND.
+- **Do NOT use `filter[projectLabels][]` or `filter[licenses][]` here — they are silently ignored** (accepted, stripped, results unfiltered; verified at source). License-dimension counts come from `/api/v2/issues/license-list`; label-scoped counting goes through the projects API.
+- Date filters accept any JS-Date-parseable string (`07/01/2026` works like ISO) but **garbage strings return HTTP 500** — send ISO 8601.
+- Pagination: `count` default 20, silently clamped to [5, 1000]; loop pages (no total in body — see `/statuses` above).
 
 Issue `type` values you'll meet in licensing work: `unlicensed_dependency` (no license found), `policy_flag` (license denied by policy), `policy_conflict`. Fixing `unlicensed_dependency` properly = give the dep a license (see `license-corrections.md`), not ignoring it.
 
