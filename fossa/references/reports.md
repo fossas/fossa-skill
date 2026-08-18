@@ -57,4 +57,5 @@ For a paginated, structured third-party dependency list (locator, declared/disco
 GET /api/v2/revisions/{url-encoded-revision-locator}/dependencies?count=100&page=1
 ```
 
-- **The server caps page size at 100** regardless of a larger `count` — a request with `count=6000` silently returns 100 rows. Always loop pages until you've collected `total`. Treating one page as the full set is a known way to "lose" dependencies that are actually there.
+- **The server clamps page size to [25, 100]** regardless of what you ask (`count=500` returns 100; `count=10` returns 25). Always loop pages until you've collected `total`.
+- Server-side filters (flat params): `fetchers[]`, `licenses[]` (e.g. `Apache-2.0`), `depth[]` (direct|transitive), `hasIssues[]` (hasVulnIssues|hasLicensingIssues|hasQualityIssues|noIssues), `resolved`, `exactLocators[]` (exact) vs `locators[]` (substring), `layerDepth[]` (**base|other** for container layers — the issues API spells it `containerLayers[]=baseLayer|otherLayer`), `sources[]` (managed|vendored|snippet), plus hydration flags `includeLicenseText`/`includeCopyright`/`includeDownloadUrl`. Filtered `total` comes back in the body — use it instead of client-side counting.
