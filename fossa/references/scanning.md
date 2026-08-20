@@ -53,8 +53,9 @@ What you can't control here: per-scan CLI flags beyond those options (no target/
 
 `fossa container analyze <image>` — image from docker archive tar, Docker/Podman daemon, or OCI registry (digest pinning supported). Scans the **base layer, then remaining layers squashed**, tagging findings by layer — policies can suppress base-image-inherited issues separately from app-introduced ones.
 
-- OS packages: apk/dpkg/rpm databases. App deps: **static-only** strategies found in the image filesystem — Gradle/Go-modules/Cargo (dynamic-only) will NOT appear from a container scan, and `fossa-deps.yml` inside the image is ignored.
-- Reliable pattern for compiled apps: `fossa analyze` on source in CI **plus** `fossa container analyze` on the image, combined in a release group.
+- OS packages: apk/dpkg/rpm databases. App deps: **static-only** strategies found in the image filesystem — Gradle/Cargo (dynamic-only) will NOT appear from a container scan, and `fossa-deps.yml` inside the image is ignored.
+- **Go binaries ARE detected (CLI ≥ 3.18.0)**: the analyzer inspects executables in every layer and reads the module list embedded in Go ≥ 1.18 binaries (what `go version -m` shows), reporting them as regular Go dependencies — so Go deps surface even from `scratch`/distroless/Chainguard images with no package metadata. Pseudo-versions normalize to commit hashes exactly like a go.mod scan; binaries built before Go 1.18 (or with build info stripped/packed) are skipped silently. Opt out via target filtering.
+- Reliable pattern for other compiled apps (and Go < 1.18): `fossa analyze` on source in CI **plus** `fossa container analyze` on the image, combined in a release group.
 - Gate with `fossa container test <image>`; `--only-system-deps`, `-o` dry-run, `.fossa.yml` target filtering, `fossa container list-targets` all work.
 
 ## 4. SBOM import — see `sbom-import.md` for the full contract and verified API sequence.
