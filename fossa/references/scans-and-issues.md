@@ -72,16 +72,18 @@ PUT /api/v2/issues/?category={category}&ids[]={issueId}
 **The body is the bare action; the target selection goes in the query string** (`category` is required there, like the list endpoint):
 
 ```json
-{ "type": "ignore", "reason": "…", "notes": "…" }
+{ "type": "ignore", "notes": "…" }
 ```
 
 ```bash
 curl -s -X PUT -H "Authorization: Bearer $FOSSA_API_KEY" -H "Content-Type: application/json" \
   "https://app.fossa.com/api/v2/issues/?category=licensing&ids[]=10122069" \
-  -d '{"type":"ignore","reason":"…","notes":"…"}'
+  -d '{"type":"ignore","notes":"why this is being ignored"}'
 ```
 
 - `type`: `"ignore"` | `"unignore"` (also `"issueException"` for exception rules).
+- **`reason` is an enum, not free text — put your prose in `notes`.** The server (validation added Aug 2026, CORE-7134) rejects any ignore whose `reason` is not one of: `Fixed`, `Under_investigation`, `incorrect_data_found`, `other`, or the VEX "not affected" set `Component_not_present`, `Inline_mitigations_already_exist`, `Vulnerable_code_cannot_be_controlled_by_adversary`, `Vulnerable_code_not_in_execute_path`, `Vulnerable_code_not_present` (case-sensitive; `400 Invalid reason` otherwise). Omitting `reason` is fine. The two auto-ignore reasons (`non_concluded_policy_auto_ignore`, `dependency_not_distributed_auto_ignore`) are read-only: FOSSA sets them itself and rejects them on write.
+- **Reading why an issue is ignored**: each `projects[]` entry of an ignored issue carries `ignoredKind.ignoreType` = `manual` | `issueException` | `autoIgnore` (plus `ignoredReason` text, `ignoredNote`, `ignoredBy`). `autoIgnore` means a policy setting (Intelligent Auto Ignore, or "dependency not distributed") suppressed it, not a person — `ignoredBy` is null. `filter[ignoreReason][]` accepts the auto-ignore values too, so you can list exactly the auto-ignored set.
 - **Blast radius — an issue id spans projects.** A v2 issue id aggregates every instance of that issue across your org (`statuses: {"active": N, "ignored": M}` counts them). An `ids[]`-only ignore flips **all instances org-wide** — the response's `count` tells you how many it touched (live-verified: one id, 49 instances, all flipped). To suppress only one project's instance, add `scope[type]=project&scope[id]={url-encoded project locator}` to the query (verified: `count: 1`, other projects untouched). `scope.type` on the mutation accepts `project`, `global`, or `releaseGroup` — `revision` is not a scope type (narrow a project scope with `scope[revision]` instead).
 - **Always target explicit `ids[]` you have read first.** Omitting `ids[]` targets _everything matching the query filters_ — powerful for "ignore all issues from this dep across projects," dangerous when the filter is broader than you think. Read the list with the same query, show the user the count, then mutate.
 - Ignoring an issue suppresses it; it does not fix the underlying data. If the real problem is a wrong/missing license, correct the license instead — the issue then clears on rescan with the data actually right.
