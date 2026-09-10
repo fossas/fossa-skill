@@ -50,4 +50,4 @@ There is no unblock endpoint in the packages namespace — remove the rule from 
 DELETE /api/policies/{policyId}/rules
 ```
 
-with body `{"ruleIds": [ ... ]}` — find the rule ids by reading the policy (`GET /api/policies/{id}`) and matching `blacklisted_dependency` rules for your package locator.
+with body `{"ruleIds": [ ... ]}` — find the rule ids by reading the policy (`GET /api/policies/{id}`) and matching `blacklisted_dependency` rules for your package locator. This is a general rules sub-resource, not specific to quality/blacklist rules — the `POST` counterpart (`POST /api/policies/{policyId}/rules`) is the correct way to add rules to any policy type, licensing included; see `policies-and-projects.md`, since `PUT /api/policies/{id}` does not actually persist rule content despite being the documented endpoint.
