@@ -69,7 +69,7 @@ For deb/apk packages, distro coordinates go in **separate fields**, not in the n
 }
 ```
 
-**Step B — confirm it resolved.** Read the dependencies list (`GET /api/v2/revisions/{REV}/dependencies`, paginate) and check the added locator has licenses and `isUnknown: false`. Not every plausible correction resolves — a wrong Maven groupId can 200 on add and still be the wrong package. Probe the registry first (see `packages.md`) to raise the hit rate.
+**Step B — confirm it resolved.** Read the dependencies list (`GET /api/v2/revisions/{REV}/dependencies`, paginate — `count` is silently clamped to **100** per page, `count=1000` still returns 100; loop `page` until a short page) and check the added locator has licenses and `isUnknown: false`. Not every plausible correction resolves — a wrong Maven groupId can 200 on add and still be the wrong package. Probe the registry first (see `packages.md`) to raise the hit rate.
 
 **Step C — only if Step B passed, ignore the old locator:**
 
@@ -118,6 +118,8 @@ If the bad locators originate in a hand-written `fossa-deps.yaml`, correct the `
 - The Python type is **`pypi`**, not `pip`.
 - Maven `name` is **`group:artifact`** (both parts).
 - `deb` is a first-class referenced-dependency type: `type: deb` with `name`, `version`, `os` (lowercase, e.g. `ubuntu`), `osVersion`, `arch`.
+- `git` names pass through **verbatim** into the locator (`git+<name>$<version>`): `name: github.com/curl/curl` → `git+github.com/curl/curl$<sha>`; `name: https://github.com/curl/curl` → `git+https://github.com/curl/curl$<sha>`. To reproduce an existing locator (e.g. replicating another org's dependency set), copy its exact host form — the CLI docs' "full link" wording is not a normalization (live-verified 2026-09-16: 56/56 locators byte-identical only after switching bare-host entries to bare-host names).
+- Linux locator shape, when deriving entries from existing locators: `deb+<name>#<os>#<osVersion>$<arch>#<version>` — e.g. `deb+bash#debian#12$amd64#0:5.2.15-2+b9` (the epoch stays in the version).
 - **One malformed entry can silently zero the whole file** — a locator containing `: ` (colon-space) parses as a broken YAML mapping and the upload contains 0 dependencies with no error. After any edit, run `fossa analyze --output` (dry run) and confirm the dependency count before trusting a scan.
 
 ## 4. User-defined dependency (internal/unfetchable packages)
