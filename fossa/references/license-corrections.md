@@ -71,6 +71,9 @@ curl -s -H "Authorization: Bearer $FOSSA_API_KEY" \
   "https://app.fossa.com/api/v2/revisions/{url-encoded-locator}/correction/conclusions"
 ```
 
+- **Read-back shape**: `{ "scoped": { "licenses", "lastEditedBy", "updatedAt", "scope" }, "base": { "licenses", "justification", … } }`. `base` is FOSSA's automated conclusion (or a FOSSA-admin _global_ override when one exists) with its justification; `scoped` is the highest-priority conclusion visible at the requested scope **falling back to base** — so `scoped == base` does not prove no human conclusion exists. The discriminator is `scoped.scope`: `null` = fell back to the automated row, `global` = FOSSA admin, anything else = a conclusion at that scope (source: `modules/LicenseManager/conclusions.ts:163-246`, priority ladder automated < global < organization < project/release_group < revision/release).
+- **There is no org-wide list endpoint** — `GET /api/license-conclusions` and `GET /api/v2/license-conclusions` both 404 (live-verified 2026-09-16). Auditing who concluded what across an org means the per-revision endpoint above per locator, or the database (`"RevisionLicenseConclusions"`: `scope IS NULL` = automated; any other scope = a scoped row). Project corrections ALSO write org-scope conclusion rows as a side-effect — stamped `'system'` when created through `ProjectCorrection.fromLocator` (`models/projectcorrection/model.ts:238-243`) or with the correcting user's email/username through `ProjectCorrectionManager` (`index.ts:614-621`) — so `last_edited_by` alone does not separate direct human conclusions from correction side-effects; cross-check `"ProjectCorrections"`.
+
 ## 3. Validate license IDs before writing
 
 The server does **not** validate `licenseId` strings on these writes — a typo becomes bad data silently. Pre-check every ID (sub-second, read-only):
