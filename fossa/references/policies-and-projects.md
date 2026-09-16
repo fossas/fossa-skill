@@ -36,19 +36,21 @@ GET /api/projects/{PROJECT}/revisions  # list scanned revisions (newest first)
 
 ## Teams
 
-Teams scope projects for filtering and RBAC. **`fossa analyze -T/--team <name>` does not create the team** — an unknown name is dropped and the upload lands untagged (a push-only token gets 403 on create). Create first, then tag:
+Teams scope projects for filtering and RBAC. **`fossa analyze -T/--team <name>` does not create the team — an unknown name FAILS the upload.** The CLI's preflight (`GET /api/cli/custom_build_permissions` → `routes/cli/permissions.ts:50-62`) and the upload handler (`modules/customBuildUploadHandler.ts:87-93`) both throw 404 `specified team '<name>' not found`, so nothing lands. Create first, then tag:
 
 ```
-GET  /api/teams          # [{ id, name, organizationId, defaultRoleId, autoAddUsers, … }]
-POST /api/teams          # { "name", "autoAddUsers": false, "defaultRoleId" }   (informal — the dashboard's route)
+GET  /api/teams                # [{ id, name, organizationId, defaultRoleId, autoAddUsers, teamProjects: [{ projectId, … }], … }]
+POST /api/teams                # { "name", "autoAddUsers": false, "defaultRoleId" }   (informal — the dashboard's route)
 GET  /api/teams/{id}
-PUT  /api/teams/{id}     # rename / settings
+PUT  /api/teams/{id}           # rename / settings
+PUT  /api/teams/{id}/projects  # { "projects": ["<project locator>", …] }  — or "all", or a filters object
 ```
 
 - `defaultRoleId` is the org's team role id — copy it from an existing team in the list or `GET /api/roles` (a "Team Viewer"-style role); ids differ per org.
-- Assign projects on upload (`-T "<name>"`) or via the project update below; list a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
+- Creating is permission-gated (`routes/teams.ts:179` → 403 without the team-create permission; a push-only token was observed to 403).
+- Assign existing projects with `PUT /api/teams/{id}/projects` (`routes/teams.ts:816-840`) — **the project-update endpoint ignores team fields** (200, nothing changes). New uploads take `-T "<name>"`. List a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
 
-(source: `routes/teams.ts` — `GET /api/teams` :98, `POST /api/teams` :176-219 reads `name` / `autoAddUsers` / `defaultRoleId`, `PUT /api/teams/:id` :278, `GET /api/teams/:id` :294; create live-verified 2026-09-16.)
+(source: `routes/teams.ts` at FOSSA `22fc86d76b` — `GET /api/teams` :98, `POST /api/teams` :176-219 reads `name` / `autoAddUsers` / `defaultRoleId`, `PUT /api/teams/:id` :278, `GET /api/teams/:id` :294, `PUT /api/teams/:id/projects` :816; unknown-team 404 traced to `modules/customBuildUploadHandler.ts:87-93` + `routes/cli/permissions.ts:50-62` (fossa-cli runs the preflight in `src/App/Fossa/PreflightChecks.hs:79`); create + `?teamId=` filter live-verified 2026-09-16.)
 
 ## Release groups
 
