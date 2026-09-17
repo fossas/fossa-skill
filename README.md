@@ -1,6 +1,6 @@
 # fossa-skill — Claude skill for the FOSSA API
 
-A [Claude agent skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) that teaches Claude to drive FOSSA (app.fossa.com) through its REST API: check scans, pull and ignore issues, generate attribution reports and SBOMs, fix misidentified dependencies, correct licenses, and manage policies and release groups — the happy paths, with the real-world gotchas documented.
+A [Claude agent skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) that teaches Claude to drive FOSSA (app.fossa.com) through its REST API: check scans, pull and ignore issues, generate attribution reports and SBOMs, fix misidentified dependencies, correct licenses, and manage policies, teams, users, and release groups — the happy paths, with the real-world gotchas documented.
 
 The skill is plain Markdown + `curl`/`jq` recipes. No runtime, no dependencies, nothing to host — your security team can read every line of what it does.
 
