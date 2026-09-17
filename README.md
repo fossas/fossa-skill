@@ -38,7 +38,7 @@ fossa/
     license-corrections.md       # project corrections, license conclusions — and which one you want
     dependency-fixes.md          # re-resolve, remap wrong locators, fossa-deps, user-defined deps
     packages.md                  # package index lookup, registry probes, locator grammar
-    policies-and-projects.md     # policies, project settings, release groups
+    policies-and-projects.md     # policies, project settings, teams & users, release groups
 ```
 
 ## Status of this skill
