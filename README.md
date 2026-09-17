@@ -33,11 +33,15 @@ The skill never asks you to paste the token into chat; recipes read it from the 
 fossa/
   SKILL.md                       # overview: auth, locators, conventions, workflow index
   references/
+    scanning.md                  # creating scans: CLI analyze, Quick Import, container images
+    sbom-import.md               # importing an SBOM file as a FOSSA project
     scans-and-issues.md          # scan status polling, listing + ignoring issues
     reports.md                   # attribution reports, SBOMs (CycloneDX/SPDX), dependency lists
     license-corrections.md       # project corrections, license conclusions — and which one you want
     dependency-fixes.md          # re-resolve, remap wrong locators, fossa-deps, user-defined deps
     packages.md                  # package index lookup, registry probes, locator grammar
+    snippets.md                  # reviewing copied-OSS-code snippet matches
+    package-blocking.md          # Package Index browsing, block/unblock packages
     policies-and-projects.md     # policies, project settings, teams & users, release groups
 ```
 
