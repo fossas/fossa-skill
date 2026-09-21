@@ -15,6 +15,8 @@ A `{"sbom": {...}}` wrapper is unwrapped automatically.
 ## How components resolve (what to expect)
 
 - **Components with purls become native FOSSA locators** (29 purl types: npm, mvn, pip, go, deb, apk, cargo, gem, nuget, github, generic, …). For known packages, **FOSSA's registry licenses override whatever the SBOM declares** (live-verified: a component declared license-less came back `MIT + CC0-1.0` from the registry).
+- **`pkg:github/{owner}/{repo}@{tag-or-sha}` is the route for C/C++ and other unpackaged source**: it becomes `git+github.com/{owner}/{repo}$<commit>`, FOSSA license-scans the upstream repository, and CVEs attach by version (live-verified: `pkg:github/openssl/openssl@openssl-3.5.7` → the tag's commit, 24 CVEs). Owner and repo are lowercased on import (verified with `pkg:github/Mbed-TLS/mbedtls`), so SBOM purls are not exposed to the case-sensitive CVE matching that bites hand-written `fossa-deps` `git` names (see `dependency-fixes.md`).
+- **A component's `cpe` field opens a second CVE path.** Components with no resolvable purl import as user-defined `user+…` dependencies, which have no ecosystem identity for FOSSA to match vulnerability data against; a `cpe` gives them one. Live-verified: a bare component with `cpe:2.3:a:tianocore:edk2:202311:*:*:*:*:*:*:*` imported as `user+…` with 16 CVEs. The CPE's *product* is what selects the CVE set; a version range is applied only where the matched advisory carries one, and entries recorded as unpatched (range `*`) come back for every version. That is why `202311`, `202402` and `202608` returned the same 16 here. Treat CPE-sourced CVEs as a watchlist to triage once, not as a statement that your version is affected.
 - `pkg:generic` purls get a best-effort registry match by name+version; unmatched ones need a `download_url`/`vcs_url` qualifier or fall through to user-defined.
 - **Components without purls become user-defined dependencies** carrying the SBOM's name/version/license (`expression` > `license.id` > `license.name`; SPDX: `licenseConcluded` > `licenseDeclared`).
 - `pkg:githubactions` components are **silently dropped** (unsupported type).
@@ -50,4 +52,5 @@ CLI equivalent: `fossa sbom analyze <file>` (`-p`/`-r` override the filename/tim
 ## Verify and clean up
 
 - Read back deps: `GET /api/v2/revisions/{REV-locator}/dependencies` — check locators are native (not `user+`) and depths match your `dependencies[]`.
+- Export it back out with `GET /api/v2/revisions/{REV-locator}/attribution/download?…` or `…/attribution/full/CYCLONEDX_JSON` (see `reports.md`; keep the `/v2` prefix on `download`). Round trip verified on a 309-component import: components, the dependency graph and the CVE list all survive, as CycloneDX 1.7.
 - Remove a test import: `DELETE /api/projects/{project-locator}` (no `$revision`; needs Project Delete).
