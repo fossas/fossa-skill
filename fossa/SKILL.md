@@ -33,7 +33,7 @@ enc() { jq -rn --arg v "$1" '$v|@uri'; }
 
 | You want to…                                                                               | Read                                  |
 | ------------------------------------------------------------------------------------------ | ------------------------------------- |
-| Create a scan: CLI analyze, Quick Import, container images                                 | `references/scanning.md`              |
+| Create a scan: CLI analyze, Quick Import, container images, binary uploads                 | `references/scanning.md`              |
 | Import an SBOM file as a FOSSA project                                                     | `references/sbom-import.md`           |
 | Check a scan/analysis finished; list, filter, or ignore issues                             | `references/scans-and-issues.md`      |
 | Generate an attribution report, SBOM, or notices file; list dependencies                   | `references/reports.md`               |
