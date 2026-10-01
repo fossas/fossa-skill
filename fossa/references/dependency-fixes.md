@@ -116,6 +116,7 @@ Deriving corrected locators, common classes:
 If the bad locators originate in a hand-written `fossa-deps.yaml`, correct the `type:` / `name:` / `version:` entries in the repo and re-analyze. Schema notes that bite:
 
 - The Python type is **`pypi`**, not `pip`.
+- `type:` is a closed list parsed by `depTypeFromText` (`fossa-cli src/App/Fossa/ManualDeps.hs:713-737`); `conan` joined it on 2026-09-29 (`082d3a84`, first shipped in CLI **v3.20.0**; the server's matching `pkg:conan` SBOM purl converter landed 2026-09-28) — on any CLI before v3.20.0 an unknown type fails the YAML parse (`depTypeParser`, `:540-543`: `dep type: conan not supported`), so nothing from that file uploads. Check `fossa --version` before writing a type newer than the CLI in CI.
 - Maven `name` is **`group:artifact`** (both parts).
 - `deb` is a first-class referenced-dependency type: `type: deb` with `name`, `version`, `os` (lowercase, e.g. `ubuntu`), `osVersion`, `arch`.
 - `git` names pass through **verbatim** into the locator (`git+<name>$<version>`): `name: github.com/curl/curl` → `git+github.com/curl/curl$<sha>`; `name: https://github.com/curl/curl` → `git+https://github.com/curl/curl$<sha>`. To reproduce an existing locator (e.g. replicating another org's dependency set), copy its exact host form — the CLI docs' "full link" wording is not a normalization (live-verified 2026-09-16: 56/56 locators byte-identical only after switching bare-host entries to bare-host names).
