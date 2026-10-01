@@ -52,5 +52,5 @@ CLI equivalent: `fossa sbom analyze <file>` (`-p`/`-r` override the filename/tim
 ## Verify and clean up
 
 - Read back deps: `GET /api/v2/revisions/{REV-locator}/dependencies` — check locators are native (not `user+`) and depths match your `dependencies[]`.
-- Export it back out with `GET /api/v2/revisions/{REV-locator}/attribution/download?…` or `…/attribution/full/CYCLONEDX_JSON` (see `reports.md`; keep the `/v2` prefix on `download`). Round trip verified on a 309-component import: components, the dependency graph and the CVE list all survive, as CycloneDX 1.7.
+- Export it back out with `GET /api/v2/revisions/{REV-locator}/attribution/full/CYCLONEDX_JSON` (see `reports.md`; the `…/attribution/download?…` form needs the `dependencyInfoOptions[]` column list and `includeNonLicenseCopyrights=true` or the exported components carry no licenses or copyrights). Round trip verified on a 309-component import: components, the dependency graph and the CVE list all survive, as CycloneDX 1.7.
 - Remove a test import: `DELETE /api/projects/{project-locator}` (no `$revision`; needs Project Delete).
