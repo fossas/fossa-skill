@@ -1,0 +1,13 @@
+{
+  "name": "fossa-pr",
+  "version": "0.1.0",
+  "description": "FOSSA issues on a GitHub pull request: see them in a pane, then explain, fix, ignore, or hand them to fossabot.",
+  "author": { "name": "FOSSA" },
+  "types": "./types/index.d.ts",
+  "mcpServers": {
+    "fossa": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/server.ts"]
+    }
+  }
+}
