@@ -36,8 +36,8 @@ export const register: Register = on => {
       description: 'Show the FOSSA issues on a pull request in a pane',
       argumentHint: '[owner/repo#]<pr number>',
     })
-    $.clock.every(WATCH_MS, () => watch($))
-    void watch($)
+    $.clock.every(WATCH_MS, () => watchOnce($))
+    void watchOnce($)
     return next(e)
   })
 
@@ -322,6 +322,23 @@ async function currentRepo($: EngineInterface): Promise<string | undefined> {
     return out.exitCode === 0 && out.stdout.trim() ? out.stdout.trim() : undefined
   } catch {
     return undefined
+  }
+}
+
+// True while a watch runs, so the first call and a timer tick never overlap.
+let isWatching = false
+
+// Runs one watch unless one is running, and logs a failure instead of
+// leaving it unhandled; the next tick tries again.
+async function watchOnce($: EngineInterface): Promise<void> {
+  if (isWatching) return
+  isWatching = true
+  try {
+    await watch($)
+  } catch (err) {
+    $.ui.log(`FOSSA check watch failed: ${messageOf(err)}`, { to: 'debug' })
+  } finally {
+    isWatching = false
   }
 }
 

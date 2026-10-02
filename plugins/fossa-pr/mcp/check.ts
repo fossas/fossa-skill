@@ -11,10 +11,21 @@ export type RollupItem = {
   state?: string
   detailsUrl?: string
   targetUrl?: string
+  startedAt?: string
+  completedAt?: string
 }
 
+// The FOSSA scan check: a check whose name says fossa, but not one of
+// fossabot's own checks (such as "fossabot: review"). When several
+// match, the latest counts, so an older green run cannot hide a newer red one.
 export function fossaCheckOf(rollup: readonly RollupItem[]): FossaCheck | undefined {
-  const item = rollup.find(one => /fossa/i.test(one.name ?? one.context ?? ''))
+  const when = (one: RollupItem) => Date.parse(one.completedAt || one.startedAt || '') || 0
+  const item = rollup
+    .filter(one => {
+      const name = one.name ?? one.context ?? ''
+      return /fossa/i.test(name) && !/fossabot/i.test(name)
+    })
+    .reduce<RollupItem | undefined>((latest, one) => (!latest || when(one) > when(latest) ? one : latest), undefined)
   if (!item) return undefined
   const url = item.detailsUrl ?? item.targetUrl
   const ids = url?.match(/\/actions\/runs\/(\d+)(?:\/job\/(\d+))?/)

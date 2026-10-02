@@ -8,13 +8,23 @@ import { execFile } from 'node:child_process'
 
 import { fossaCheckOf } from './check.ts'
 
-const stdin = await new Promise<string>(resolve => {
-  let text = ''
-  process.stdin.setEncoding('utf8')
-  process.stdin.on('data', chunk => (text += chunk))
-  process.stdin.on('end', () => resolve(text))
-  process.stdin.on('error', () => resolve(''))
-})
+// Codex pipes the hook input and closes stdin. Run by hand from a terminal, or
+// with stdin left open, the hook gives up on it after 2 seconds.
+const stdin = process.stdin.isTTY
+  ? ''
+  : await new Promise<string>(resolve => {
+      let text = ''
+      // Close stdin when done: an open stdin keeps the process alive.
+      const done = () => {
+        process.stdin.destroy()
+        resolve(text)
+      }
+      setTimeout(done, 2000).unref()
+      process.stdin.setEncoding('utf8')
+      process.stdin.on('data', chunk => (text += chunk))
+      process.stdin.on('end', done)
+      process.stdin.on('error', done)
+    })
 
 let cwd = process.cwd()
 try {
@@ -25,7 +35,12 @@ try {
 
 execFile('gh', ['pr', 'view', '--json', 'number,url,statusCheckRollup'], { cwd, timeout: 10_000 }, (err, stdout) => {
   if (err) return
-  const pr = JSON.parse(stdout) as { number: number; url: string; statusCheckRollup?: [] }
+  let pr: { number: number; url: string; statusCheckRollup?: [] }
+  try {
+    pr = JSON.parse(stdout)
+  } catch {
+    return
+  }
   const check = fossaCheckOf(pr.statusCheckRollup ?? [])
   const repo = pr.url.match(/github\.com\/([^/]+\/[^/]+)\/pull\//)?.[1]
   if (!check || !repo || (check.state !== 'FAILURE' && check.state !== 'ERROR')) return

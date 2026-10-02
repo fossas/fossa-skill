@@ -157,6 +157,22 @@ test('ignore sends the documented query and body, and forgets the project', asyn
   assert.equal(calls.filter(call => call.method === 'GET').length, 2)
 })
 
+test('an ignore keeps the cache of a longer project name with the same start', async () => {
+  const { client, calls } = harness(call => ({ body: call.method === 'PUT' ? { count: 1 } : SCANNED }))
+  await client.revisionIssues('custom+1/github.com/o/r$abc')
+  await client.revisionIssues('custom+1/github.com/o/repo$abc')
+  await client.ignoreIssue({ id: 7, category: 'vulnerability', projectLocator: 'custom+1/github.com/o/r', notes: 'n' })
+  await client.revisionIssues('custom+1/github.com/o/r$abc')
+  await client.revisionIssues('custom+1/github.com/o/repo$abc')
+  const gets = calls.filter(call => call.method === 'GET').map(call => decodeURIComponent(new URL(call.url).pathname))
+  // o/r is fetched again after its ignore; o/repo still comes from the cache.
+  assert.deepEqual(gets, [
+    '/api/cli/custom+1/github.com/o/r$abc/issues',
+    '/api/cli/custom+1/github.com/o/repo$abc/issues',
+    '/api/cli/custom+1/github.com/o/r$abc/issues',
+  ])
+})
+
 test('a single issue is looked up within its revision', async () => {
   const { client, calls } = harness(() => ({ body: { id: 7 } }))
   await client.issue(7, 'vulnerability', 'custom+1/github.com/o/r', 'abc123')

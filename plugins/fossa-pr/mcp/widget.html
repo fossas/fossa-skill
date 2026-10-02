@@ -107,6 +107,8 @@ function notify(method, params) {
 }
 
 window.addEventListener('message', event => {
+  // Only the MCP Apps host, the parent window, speaks to this view.
+  if (event.source !== window.parent) return;
   const msg = event.data;
   if (!msg || msg.jsonrpc !== '2.0') return;
   if (msg.id !== undefined && waiting.has(msg.id)) {

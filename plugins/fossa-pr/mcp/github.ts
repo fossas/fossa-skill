@@ -64,7 +64,9 @@ export async function pullRequest(run: Run, repo: string, pr: number | undefined
 
 // The commit the PR branched from, which is what CI analyzed on the base branch.
 export async function mergeBase(run: Run, repo: string, baseRef: string, headSha: string): Promise<string> {
-  const out = await run(['api', `repos/${repo}/compare/${baseRef}...${headSha}`, '--jq', '.merge_base_commit.sha'])
+  // Encode each part, so a branch such as release#1 survives; keep the slashes.
+  const base = baseRef.split('/').map(encodeURIComponent).join('/')
+  const out = await run(['api', `repos/${repo}/compare/${base}...${headSha}`, '--jq', '.merge_base_commit.sha'])
   return out.trim()
 }
 

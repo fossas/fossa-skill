@@ -106,7 +106,8 @@ claude --plugin-dir ./plugins/fossa-pr     # load this folder for one session
 ## Test
 
 ```sh
-(cd mcp && npm test)        # server: 28 tests, fake FOSSA and fake clock
+# from plugins/fossa-pr
+(cd mcp && npm test)        # server: 31 tests, fake FOSSA and fake clock
 claude plugin test .        # mod: 13 tests against the Claude Code engine
 claude plugin validate ./.claude-plugin/plugin.json
 ```

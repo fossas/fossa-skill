@@ -175,9 +175,12 @@ export class FossaClient {
   // An ignore changes what every revision of the project reports, so every
   // cached answer for the project goes.
   forgetProject(projectLocator: string): void {
-    const encoded = encodeURIComponent(projectLocator)
+    // The locator ends where a revision ($), the next query field (&), or the
+    // key ends, so a longer project name with the same start is kept.
+    const encoded = encodeURIComponent(projectLocator).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const ofProject = new RegExp(`${encoded}(%24|&|$)`)
     for (const key of this.cache.keys()) {
-      if (key.includes(encoded)) this.cache.delete(key)
+      if (ofProject.test(key)) this.cache.delete(key)
     }
   }
 

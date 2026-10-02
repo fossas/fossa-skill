@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import { FossaClient } from '../fossa.ts'
 import { fossaCheckOf } from '../check.ts'
+import { mergeBase } from '../github.ts'
 import type { Run } from '../github.ts'
 import { callTool, prReport } from '../tools.ts'
 import type { ToolResult } from '../tools.ts'
@@ -179,6 +180,30 @@ test('ignore refuses a reason Core would refuse', async () => {
   })
   assert.equal(result.isError, true)
   assert.equal(urls.length, 0)
+})
+
+test('fossaCheckOf skips fossabot checks and takes the latest FOSSA check', () => {
+  // A repo with fossabot installed has both kinds of check side by side.
+  const guardrails = { name: 'fossabot: review', status: 'COMPLETED', conclusion: 'SUCCESS', completedAt: '2026-01-01T00:10:00Z' }
+  const scan = { name: 'ci: fossa-scan', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: '2026-01-01T00:05:00Z' }
+  assert.equal(fossaCheckOf([guardrails, scan])?.name, 'ci: fossa-scan')
+  assert.equal(fossaCheckOf([scan, guardrails])?.state, 'FAILURE')
+  assert.equal(fossaCheckOf([guardrails]), undefined)
+
+  const older = { name: 'check-fossa', status: 'COMPLETED', conclusion: 'SUCCESS', completedAt: '2026-01-01T00:00:00Z' }
+  const newer = { name: 'check-fossa', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: '2026-01-02T00:00:00Z' }
+  assert.equal(fossaCheckOf([older, newer])?.state, 'FAILURE')
+  assert.equal(fossaCheckOf([newer, older])?.state, 'FAILURE')
+})
+
+test('mergeBase encodes each part of the base branch name', async () => {
+  const seen: string[][] = []
+  const run: Run = async args => {
+    seen.push(args)
+    return BASE + '\n'
+  }
+  await mergeBase(run, 'acme/api', 'release/v1#2', HEAD)
+  assert.equal(seen[0]![1], `repos/acme/api/compare/release/v1%232...${HEAD}`)
 })
 
 test('fossaCheckOf reads a running check and a status context', () => {
