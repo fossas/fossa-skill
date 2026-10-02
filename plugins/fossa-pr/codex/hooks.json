@@ -1,0 +1,18 @@
+{
+  "description": "fossa-pr for Codex: tells the agent when the branch's FOSSA check failed",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/mcp/session-start.ts\"",
+            "timeout": 15,
+            "statusMessage": "Checking the FOSSA check on this branch's PR"
+          }
+        ]
+      }
+    ]
+  }
+}
