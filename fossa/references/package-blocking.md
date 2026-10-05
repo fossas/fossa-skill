@@ -19,7 +19,7 @@ GET /api/packages/{package}/versions/{version}/vulnerabilities
 
 - Package locators are **version-less** (`npm+lodash`), URL-encoded in paths.
 - Filters on the list: `packageName` (partial), `depth[]` (direct|transitive), `labels[]`, `projectName`, `sources[]`, `visibility[]`, `blockTypes[]` (has_blocked_packages|no_blocked_packages), `cve`, `cwes[]`, `fixTypes[]`, `severities[]`, `teamIds[]`, `locators[]`, `sort` (match|alphabetical|usage). Page cap 50.
-- **The index is a cache** — check `lastCacheDate` before treating counts as current (blocked counts, however, are computed live from the rules).
+- **The index is a cache** — check `lastCacheDate` (ISO string; the key is omitted when no cached package rows are visible to the caller — before the first cache build, or when project/team RBAC hides every project from a scoped key — `modules/PackageCacheManager/reader.ts:1810-1817`, `routes/organizationPackages/index.ts:125`, `shared/organizationPackages/response.ts:161-164`) before treating counts as current (blocked counts, however, are computed live from the rules).
 
 ## Blocking a package — informal (what the UI calls)
 
