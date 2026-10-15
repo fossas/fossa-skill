@@ -16,7 +16,7 @@ curl -s -m 300 -H "Authorization: Bearer $FOSSA_API_KEY" \
   -o sbom.cdx.json
 ```
 
-Formats: `CYCLONEDX_JSON`, `CYCLONEDX_XML`, `SPDX_JSON`, `SPDX` (tag-value), `CSV`, `HTML`, `MARKDOWN`, `TEXT`, `JSON` (FOSSA-native).
+Formats: `CYCLONEDX_JSON`, `CYCLONEDX_XML`, `SPDX_JSON` (SPDX 2.3), `SPDX` (tag-value), `CSV`, `HTML`, `PDF`, `MD` (markdown), `TXT` (plain text), `JSON` (FOSSA-native) — the exact values of `AttributionReportFormats` (`shared/reports/index.ts:1-13`), upper-cased by the route (`routes/revisions/reportsV2.ts:406-409`). `MARKDOWN` and `TEXT` are **not** accepted (400 `Invalid report format`, live-verified 2026-10-15). `SPDX3_JSON` (SPDX 3.0 JSON-LD) exists as a format _value_ since 2026-10-14 (CORE-7966, FOSSA `f3e066e388`; flag `spdx3Export` declared but not yet read by any route) but has **no renderer** — `generateReportToStream` has no case for it and throws (`modules/ReportService/index.ts:42-43`), so both `full/SPDX3_JSON` and `download?format=SPDX3_JSON` answer HTTP 500 `code: -1` (live-verified 2026-10-15, org 32098). Use `SPDX_JSON` until the renderer ships.
 
 The fine-grained form is `…/attribution/download` (**documented**), where you choose the report _sections_ with `include*` flags **and must also choose the per-component _columns_** with `dependencyInfoOptions[]` — ⚠ without the column list the report has component names and nothing else:
 
@@ -35,10 +35,26 @@ GET /api/v2/revisions/{REV}/attribution/download?download=true&format={FORMAT}
 
 Before pulling a report on a freshly scanned revision, confirm the dependency cache is ready (`GET /api/cli/{REV}/dependencies-cache/status` → `READY`, see `scans-and-issues.md`) — earlier pulls can be incomplete.
 
+**Queue a report for download instead of streaming it** (**documented**; since 2026-10-14, FOSSA `b472212a13`) — for reports too slow to render inside one request (large PDFs). The email-report route takes `delivery=download`, stores the finished report instead of mailing it, and returns the queued task plus the id to fetch it with:
+
+```
+GET /api/v2/revisions/{REV}/attribution/email?delivery=download&format=PDF&includeDirectDependencies=true&includeDeepDependencies=true&…
+  → { "id": 12345, "jobToken": "<uuid>", "status": "CREATED", "task": "GenerateRevisionReport", …, "reportId": "<uuid>" }
+GET /api/jobs/status?jobs[]={jobToken}
+  → { "jobs": { "<jobToken>": { "status": "created"|"running"|"finished"|"failed" } } }
+GET https://app.fossa.com/attribution/{reportId}?download=true        # NOT under /api
+  → 302 to a short-lived signed S3 URL (follow it with curl -L)
+```
+
+- `delivery` is validated on the `/v2` email route only (`routes/revisions/revisionsValidators.ts:53-55`, enum `email|download`, default `email`); the no-prefix `/api/revisions/{REV}/attribution/email` still uses the old validator and always emails (`routes/revisions/revisions.ts:1260-1266`). The route stamps a fresh `reportId` on the job (`reportsV2.ts:794-812`) and the job stores the report under it and skips the email (`faktory/jobs/reports/GenerateRevisionReport.ts:33-35, 181-186`). The same `include*` / `dependencyInfoOptions[]` rules as `download` apply — it is the same query shape.
+- Poll `GET /api/jobs/status` with the `jobToken` (`routes/jobs.ts:28-53`; `jobs[]` must be GUIDs or the whole call 400s). This is what the dashboard's job toaster polls (`app/hooks/api/jobs/usePollJobs.ts:13`, fed by the job `useQueueReportDownload.ts` registers).
+- The fetch URL lives outside `/api`: `/attribution/{reportId}` looks the report up by uuid, allows it when it is public or you are in its organization, and redirects to a signed URL (`routes/reports.ts:64-83`; `download=true` sets the attachment filename). **An unknown or not-yet-stored id does not 404** — the route falls through to the web app, so an authenticated call gets HTTP 200 with the dashboard's HTML and an anonymous one a 302 to the login page (live-verified 2026-10-15). Check the job status first, then expect a `302` with a `Location` header; treat `text/html` as "not ready".
+- The release-group routes accept the same `delivery=download` (see `policies-and-projects.md`).
+
 Choosing:
 
 - **Complete per-component data in one call** (license id + full license text + copyright + supplier) → `attribution/full/CYCLONEDX_JSON` (or the `download` form above with the full column list **and** `includeNonLicenseCopyrights=true` — drop the column list and the components carry no license at all; drop the non-license-copyright flag and roughly one copyright in seven goes missing, silently). License text arrives **base64-encoded** in `components[].licenses[].license.text.content`; copyright in `components[].copyright`. SPDX_JSON also carries texts but in a side table (`hasExtractedLicensingInfos`), which is more work to join.
-- **Human-readable notices file** → `HTML`, `MARKDOWN`, or `TEXT`.
+- **Human-readable notices file** → `HTML`, `MD`, `TXT`, or `PDF`.
 - **Spreadsheet triage** → `CSV`.
 
 Flags that bite:

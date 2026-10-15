@@ -32,6 +32,7 @@ GET /api/projects/{PROJECT}/revisions  # list scanned revisions (newest first)
 - v1 `GET /api/projects` differs entirely: `fetcher=` prefix filter, `offset` (not page), default count 5000, bare-array response with the total only in the `content-range` header.
 - Find a project from a human name: v2 `title=` filter, confirm with the user when more than one matches.
 - The revisions response is **grouped by branch**: `{ "branch": { "master": [ { "locator": "custom+…$…", "revision_timestamp": …, "resolved": … } ] } }`. Take the newest entry of the branch you care about — its `locator` is the revision locator you need for issues/reports.
+- `PUT /api/projects/{PROJECT}` can only _clear_ a project's public-report id: a non-empty `bom_public_id` in the body is silently dropped, `""`/`null` stores NULL (`routes/projects/updateProject.ts:343-349`, since FOSSA `de507a5b4e`); the id is generated server-side only. An empty `title` or an empty `default_branch` (when one is stored) is rejected with 400 (`routes/projects/utils.ts:27-36`).
 - Update revision metadata (link, author): `PATCH /api/revisions/{REV}` (documented). Note there is no useful bare GET on that exact path in the current API docs; for package metadata use the endpoints in `packages.md`.
 
 ## Teams
@@ -91,16 +92,22 @@ Body: `{ "title": …, "projects": [{projectId, revisionId, branch}, …], "proj
 ```
 GET /api/project_group                          # list groups
 GET /api/project_group/{groupId}                # one group + its releases
+GET /api/project_group/{groupId}/releases?count=25&page=1   # the releases, paginated: { releases: [{ id, title, dependency_count, license_count, unresolved_*_issue_count, … }] }
 GET /api/project_group/{groupId}/all_projects   # every project across the group
+GET /api/v2/release-groups?count=10&page=1      # documented list: { releaseGroups: [{ id, title, issues, scanned, projects, publicOnPortal }], total }
+GET /api/v2/release-groups/{id}                 # documented since 2026-10 (CORE-7690): the group WITHOUT its releases —
+                                                #   { id, title, organizationId, publicOnPortal, policyId, securityPolicyId, qualityPolicyId, reportCustomText, … }
 ```
+
+(`routes/releaseGroupsV2/index.ts:42-86`, `docs/swagger/paths/releaseGroups/getReleaseGroupByIdV2.yaml`; both v2 shapes live-verified 2026-10-15 on org 32098. The v2 GET 404s for another org's id and 403s on a push-only token; pair it with `/releases` for the release list.)
 
 **Release-wide attribution report (async job + poll)** — the release-group counterpart of the revision reports in `reports.md`:
 
 ```
 POST /api/project_group/{groupId}/release/{releaseId}/attribution/{FORMAT}
-  → { "taskId": … }
+  → { "taskId": …, "reportId": "<uuid>" }
 GET  /api/project_group/attribution/{taskId}
   → { "status": "CREATED"|"ASSIGNED"|"RUNNING"|"SUCCEEDED"|"FAILED", "url": … }
 ```
 
-Poll until `SUCCEEDED`, then download from `url`. Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components.
+Poll until `SUCCEEDED`, then download from `url` (a signed link minted on each poll — `routes/reports.ts:86-134`). Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components. Formats on this v1 route are `HTML, MD, PDF, CSV, TXT, SPDX, SPDX_JSON, CYCLONEDX_JSON, CYCLONEDX_XML` (no `JSON`, no `SPDX3_JSON` — `routes/projectGroups.ts:1483-1491`). Two queue variants (both **documented**, since 2026-10-14, FOSSA `87ac5bc981`): `delivery=download` (`email` by default) stores the report instead of emailing it and the response's `reportId` is then fetchable at `https://app.fossa.com/attribution/{reportId}?download=true` (outside `/api`; 302 to a signed URL — details and the not-ready behaviour in `reports.md`); it cannot be combined with `isPublishing`. The v1 POST and the v2 `GET /api/v2/project_group/{groupId}/release/{releaseId}/attribution/{FORMAT}` share the handler (`routes/projectGroups/reportsV2.ts:203, 434-453`); on v2, `preview=true` or `download=true` renders synchronously instead of queueing. ⚠ **The v2 route's queued `taskId` is the job token (a UUID — `reportsV2.ts:453`), not v1's numeric task id (`legacyIntegerTaskId`, `routes/projectGroups.ts:1531`)**: poll it with `GET /api/jobs/status?jobs[]={taskId}` (see `reports.md`), because `GET /api/project_group/attribution/{taskId}` runs `Number()` on the id and 404s `Invalid task ID` for a UUID (`routes/reports.ts:91-93`).
