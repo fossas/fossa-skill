@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fossa-pr",
+  "version": "0.1.0",
+  "description": "FOSSA issues on a GitHub pull request: list them, tell new from old, then explain, fix, ignore, or hand them to fossabot.",
+  "author": { "name": "FOSSA", "url": "https://fossa.com" },
+  "homepage": "https://github.com/fossas/fossa-skill",
+  "keywords": ["fossa", "security", "license-compliance", "github"],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./codex/hooks.json",
+      "interface": {
+        "displayName": "FOSSA PR issues",
+        "shortDescription": "Triage the FOSSA issues on a pull request",
+        "longDescription": "Lists the FOSSA issues on a GitHub pull request, marks the ones the PR brought in, and fixes, ignores, or hands each one to fossabot. Runs a small local MCP server that uses your FOSSA API key and your gh login.",
+        "developerName": "FOSSA",
+        "category": "Developer Tools",
+        "capabilities": ["Read", "Write"],
+        "websiteURL": "https://fossa.com",
+        "defaultPrompt": ["Show the FOSSA issues on this PR"]
+      }
+    }
+  }
+}

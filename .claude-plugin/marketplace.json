@@ -1,0 +1,12 @@
+{
+  "name": "fossa",
+  "owner": { "name": "FOSSA" },
+  "metadata": { "description": "FOSSA plugins for Claude Code." },
+  "plugins": [
+    {
+      "name": "fossa-pr",
+      "source": "./plugins/fossa-pr",
+      "description": "FOSSA issues on a GitHub pull request, in a pane: explain, fix, ignore, or hand them to fossabot."
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOSSA issues</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg-2: var(--color-background-secondary, #f5f5f4);
+    --fg: var(--color-text-primary, #1c1917);
+    --fg-2: var(--color-text-secondary, #57534e);
+    --line: var(--color-border-primary, #e7e5e4);
+    --danger: var(--color-text-danger, #b91c1c);
+    --warn: var(--color-text-warning, #a16207);
+    --ok: var(--color-text-success, #15803d);
+    --link: var(--color-text-info, #1d4ed8);
+    --font: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: var(--color-background-primary, #1c1917);
+      --bg-2: var(--color-background-secondary, #292524);
+      --fg: var(--color-text-primary, #fafaf9);
+      --fg-2: var(--color-text-secondary, #a8a29e);
+      --line: var(--color-border-primary, #44403c);
+      --danger: var(--color-text-danger, #f87171);
+      --warn: var(--color-text-warning, #facc15);
+      --ok: var(--color-text-success, #4ade80);
+      --link: var(--color-text-info, #93c5fd);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #1c1917);
+    --bg-2: var(--color-background-secondary, #292524);
+    --fg: var(--color-text-primary, #fafaf9);
+    --fg-2: var(--color-text-secondary, #a8a29e);
+    --line: var(--color-border-primary, #44403c);
+    --danger: var(--color-text-danger, #f87171);
+    --warn: var(--color-text-warning, #facc15);
+    --ok: var(--color-text-success, #4ade80);
+    --link: var(--color-text-info, #93c5fd);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 12px; background: var(--bg); color: var(--fg); font: 13px/1.45 var(--font); }
+  header { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  .muted { color: var(--fg-2); }
+  .mono { font-family: var(--mono); font-size: 12px; }
+  .badge { display: inline-block; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; }
+  .FAILURE, .critical, .high { color: var(--danger); border-color: currentColor; }
+  .medium, .PENDING { color: var(--warn); border-color: currentColor; }
+  .SUCCESS { color: var(--ok); border-color: currentColor; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  li { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg-2); }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .actions { margin-top: 6px; }
+  button, select, input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--fg-2); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { font-weight: 600; }
+  input { flex: 1; min-width: 160px; }
+  a { color: var(--link); }
+  #status { margin-top: 8px; min-height: 1.2em; }
+  #status.error { color: var(--danger); }
+</style>
+</head>
+<body>
+<div id="app" class="muted">Waiting for the FOSSA report…</div>
+<div id="status" role="status"></div>
+<script>
+'use strict';
+
+// What the ignore form offers. A vulnerability's reason maps to a VEX status;
+// for a licensing or quality issue, FOSSA takes a reason only when the data is wrong.
+const VULN_REASONS = [
+  ['Vulnerable_code_not_in_execute_path', 'Code not in execute path'],
+  ['Vulnerable_code_not_present', 'Vulnerable code not present'],
+  ['Component_not_present', 'Component not present'],
+  ['Vulnerable_code_cannot_be_controlled', 'Code cannot be controlled'],
+  ['Inline_mitigations_already_exist', 'Mitigations already exist'],
+  ['incorrect_data_found', 'Incorrect data'],
+  ['Under_investigation', 'Under investigation'],
+  ['Fixed', 'Fixed'],
+  ['other', 'Other'],
+];
+const OTHER_REASONS = [
+  ['', 'Approved for this project'],
+  ['', 'Not shipped to customers'],
+  ['incorrect_data_found', 'Incorrect data'],
+];
+
+// The MCP Apps bridge: JSON-RPC over postMessage with the host.
+let nextId = 1;
+const waiting = new Map();
+
+function request(method, params) {
+  const id = nextId++;
+  window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+  return new Promise((resolve, reject) => waiting.set(id, { resolve, reject }));
+}
+
+function notify(method, params) {
+  window.parent.postMessage({ jsonrpc: '2.0', method, params }, '*');
+}
+
+window.addEventListener('message', event => {
+  // Only the MCP Apps host, the parent window, speaks to this view.
+  if (event.source !== window.parent) return;
+  const msg = event.data;
+  if (!msg || msg.jsonrpc !== '2.0') return;
+  if (msg.id !== undefined && waiting.has(msg.id)) {
+    const { resolve, reject } = waiting.get(msg.id);
+    waiting.delete(msg.id);
+    if (msg.error) reject(new Error(msg.error.message || 'The host refused the request.'));
+    else resolve(msg.result);
+    return;
+  }
+  if (msg.method === 'ui/notifications/tool-result') show(msg.params);
+  if (msg.method === 'ui/notifications/host-context-changed') applyContext(msg.params);
+});
+
+function applyContext(context) {
+  if (!context) return;
+  if (context.theme) document.documentElement.dataset.theme = context.theme;
+  const vars = context.styles && context.styles.variables;
+  if (vars) for (const [name, value] of Object.entries(vars)) if (value) document.documentElement.style.setProperty(name, value);
+}
+
+// State: the last report, and the issue whose ignore form is open.
+let report = null;
+let ignoring = null;
+let busy = false;
+
+function show(result) {
+  if (result && result.structuredContent && result.structuredContent.repo) {
+    report = result.structuredContent;
+    ignoring = null;
+    render();
+  } else if (result && result.isError) {
+    status(textOf(result), true);
+  }
+}
+
+function count(n, noun) {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+function textOf(result) {
+  return (result.content || []).filter(block => block.type === 'text').map(block => block.text).join('\n');
+}
+
+function status(text, isError) {
+  const el = document.getElementById('status');
+  el.textContent = text || '';
+  el.className = isError ? 'error' : 'muted';
+}
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (value === undefined || value === false) continue;
+    if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+    else if (key === 'class') node.className = value;
+    else node.setAttribute(key, value === true ? '' : value);
+  }
+  for (const child of children.flat()) if (child !== null && child !== undefined && child !== false) node.append(child);
+  return node;
+}
+
+function button(label, onclick, extra) {
+  return el('button', { type: 'button', onclick, disabled: busy, ...extra }, label);
+}
+
+function render() {
+  const app = document.getElementById('app');
+  app.className = '';
+  app.replaceChildren();
+  if (!report) return;
+
+  const check = report.check;
+  app.append(el('header', {},
+    el('h1', {}, `${report.repo} #${report.pr}`),
+    el('span', { class: 'muted' }, report.title),
+    check ? el('span', { class: `badge ${check.state}` }, `${check.name}: ${check.state}`) : null,
+    el('span', { class: 'mono muted' }, report.headSha.slice(0, 7)),
+  ));
+
+  if (report.status !== 'scanned') {
+    app.append(el('p', { class: 'muted' }, report.status === 'waiting'
+      ? 'FOSSA is still scanning this commit.'
+      : `FOSSA has no analysis of this commit in ${report.projectLocator}.`));
+  } else if (report.issues.length === 0) {
+    app.append(el('p', { class: 'muted' }, 'FOSSA reports no issues on this commit.'));
+  } else {
+    // Count from the rows on screen: an ignore removes one without a new report.
+    const fresh = report.issues.filter(issue => issue.isNew).length;
+    const compared = report.newCount === undefined
+      ? 'No scan of the base commit to compare with.'
+      : `${fresh} new in this PR, ${report.issues.length - fresh} already on the base branch.`;
+    app.append(el('p', { class: 'muted' }, `${count(report.issues.length, 'issue')}. ${compared}`));
+    app.append(el('ul', {}, report.issues.map(issueRow)));
+    const blocked = report.issues.find(issue => issue.fossabot && !issue.fossabot.canOpen && issue.fossabot.reason);
+    if (blocked && !report.issues.some(issue => issue.fossabot && issue.fossabot.canOpen)) {
+      app.append(el('p', { class: 'muted' }, `fossabot PRs: ${blocked.fossabot.reason}`));
+    }
+  }
+
+  app.append(el('div', { class: 'row actions' },
+    button('Refresh', refresh),
+    check && check.runId ? button('Rerun check', rerun, { class: 'primary' }) : null,
+    el('a', { href: report.url, onclick: openLink(report.url) }, 'Open PR'),
+  ));
+}
+
+function issueRow(issue) {
+  const age = issue.isNew === undefined ? null : el('span', { class: 'badge' }, issue.isNew ? 'new in PR' : 'on base');
+  const detail = [issue.cve, issue.license, issue.fixedIn ? `fixed in ${issue.fixedIn}` : null].filter(Boolean).join(' · ');
+  const item = el('li', {},
+    el('div', { class: 'row' },
+      el('span', { class: 'badge' }, issue.type.replace(/_/g, ' ')),
+      issue.severity ? el('span', { class: `badge ${issue.severity}` }, issue.severity) : null,
+      age,
+      el('span', { class: 'mono' }, `${issue.package}${issue.version ? '@' + issue.version : ''}`),
+    ),
+    detail ? el('div', { class: 'muted' }, detail) : null,
+  );
+
+  if (ignoring === issue.id) {
+    const reasons = issue.category === 'vulnerability' ? VULN_REASONS : OTHER_REASONS;
+    const reason = el('select', { 'aria-label': 'Reason' }, reasons.map(([value, label], i) => el('option', { value: String(i) }, label)));
+    const notes = el('input', { placeholder: 'Why? FOSSA records this note.', 'aria-label': 'Notes' });
+    item.append(el('div', { class: 'row actions' },
+      reason, notes,
+      button('Ignore issue', () => {
+        const note = notes.value.trim();
+        if (!note) return status('Write a note: FOSSA records why the issue is ignored.', true);
+        const [value, label] = reasons[Number(reason.value)];
+        return ignore(issue, value || undefined, issue.category === 'vulnerability' ? note : `${label}: ${note}`);
+      }, { class: 'primary' }),
+      button('Cancel', () => { ignoring = null; render(); }),
+    ));
+    queueMicrotask(() => notes.focus());
+  } else {
+    item.append(el('div', { class: 'row actions' },
+      button('Explain', () => say(`Explain FOSSA issue ${issue.id} (${issue.category}, ${issue.package}${issue.version ? '@' + issue.version : ''}) on ${report.repo}#${report.pr}: what it is, and whether this code uses the affected package. projectLocator: ${report.projectLocator}, revision: ${report.headSha}`)),
+      button('Fix', () => say(`Fix FOSSA issue ${issue.id} on ${report.repo}#${report.pr}: upgrade ${issue.package}${issue.fixedIn ? ' to ' + issue.fixedIn : ' to a safe version'}, run the tests, and show me the change before you push.`), { class: 'primary' }),
+      button('Ignore…', () => { ignoring = issue.id; render(); }),
+      issue.fossabot && issue.fossabot.canOpen ? button('Ask fossabot', () => fossabot(issue)) : null,
+      issue.dashUrl ? el('a', { href: issue.dashUrl, onclick: openLink(issue.dashUrl) }, 'Open in FOSSA') : null,
+    ));
+  }
+  return item;
+}
+
+function openLink(url) {
+  return event => {
+    event.preventDefault();
+    request('ui/open-link', { url }).catch(err => status(err.message, true));
+  };
+}
+
+async function act(label, work) {
+  busy = true;
+  render();
+  status(label);
+  try {
+    await work();
+  } catch (err) {
+    status(err.message, true);
+  } finally {
+    busy = false;
+    render();
+  }
+}
+
+async function callTool(name, args) {
+  const result = await request('tools/call', { name, arguments: args });
+  if (result && result.isError) throw new Error(textOf(result));
+  return result;
+}
+
+function say(text) {
+  return act('Sending to the agent…', async () => {
+    await request('ui/message', { role: 'user', content: [{ type: 'text', text }] });
+    status('Sent to the agent.');
+  });
+}
+
+function refresh() {
+  return act('Refreshing…', async () => {
+    const result = await callTool('fossa_pr_issues', { repo: report.repo, pr: report.pr });
+    show(result);
+    status('Refreshed.');
+  });
+}
+
+function rerun() {
+  return act('Starting the check again…', async () => {
+    await callTool('fossa_rerun_check', { repo: report.repo, runId: report.check.runId });
+    status('The check is running again. Refresh in a few minutes.');
+  });
+}
+
+function ignore(issue, reason, notes) {
+  return act('Ignoring…', async () => {
+    await callTool('fossa_ignore_issue', {
+      id: issue.id,
+      category: issue.category,
+      projectLocator: report.projectLocator,
+      ...(reason && { reason }),
+      notes: `${notes} (ignored from ${report.repo}#${report.pr} with the fossa-pr plugin)`,
+    });
+    ignoring = null;
+    report.issues = report.issues.filter(one => one.id !== issue.id);
+    status(`Ignored issue ${issue.id}.${report.check && report.check.runId ? ' Rerun the check when you are done.' : ''}`);
+  });
+}
+
+function fossabot(issue) {
+  return act('Asking fossabot…', async () => {
+    await callTool('fossa_request_fix_pr', { id: issue.id, projectLocator: report.projectLocator });
+    status(`fossabot will open an upgrade PR for ${issue.package}.`);
+  });
+}
+
+request('ui/initialize', {
+  appInfo: { name: 'fossa-pr', version: '0.1.0' },
+  appCapabilities: {},
+  protocolVersion: '2026-01-26',
+}).then(result => {
+  applyContext(result && result.hostContext);
+  notify('ui/notifications/initialized', {});
+}).catch(err => status(`The host did not start the view: ${err.message}`, true));
+</script>
+</body>
+</html>

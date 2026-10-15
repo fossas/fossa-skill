@@ -39,7 +39,27 @@ fossa/
     dependency-fixes.md          # re-resolve, remap wrong locators, fossa-deps, user-defined deps
     packages.md                  # package index lookup, registry probes, locator grammar
     policies-and-projects.md     # policies, project settings, release groups
+plugins/
+  fossa-pr/                      # plugin for Claude Code and Codex: FOSSA issues on a pull request
 ```
+
+## Plugin: fossa-pr (Claude Code and Codex)
+
+`plugins/fossa-pr` shows the FOSSA issues on a GitHub pull request, for example when the FOSSA CI check fails. It marks the issues the PR brought in, and lets you explain, fix, ignore, or hand each one to fossabot without opening the FOSSA web app. In Claude Code it opens a pane with buttons; in Codex Desktop it shows a widget.
+
+It runs a small local MCP server with no dependencies (Node 22.18 or later). The server uses your full FOSSA API token and your `gh` login, and paces and caches its calls to FOSSA.
+
+```bash
+# Claude Code
+claude plugin marketplace add fossas/fossa-skill
+claude plugin install fossa-pr@fossa
+
+# Codex
+codex plugin marketplace add fossas/fossa-skill
+codex plugin add fossa-pr@fossa
+```
+
+See [plugins/fossa-pr/README.md](plugins/fossa-pr/README.md) for setup, what each button does, and the limits.
 
 ## Status of this skill
 

@@ -1,0 +1,12 @@
+{
+  "name": "fossa-pr-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The fossa-pr plugin's local MCP server. No dependencies: Node 22.18 or later runs the .ts files as they are.",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node server.ts",
+    "test": "node --test test/*.spec.ts"
+  }
+}

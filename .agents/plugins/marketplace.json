@@ -1,0 +1,12 @@
+{
+  "name": "fossa",
+  "interface": { "displayName": "FOSSA" },
+  "plugins": [
+    {
+      "name": "fossa-pr",
+      "source": { "source": "local", "path": "./plugins/fossa-pr" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}

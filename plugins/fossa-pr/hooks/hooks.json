@@ -1,0 +1,4 @@
+{
+  "description": "The fossa-pr mod: a pane for a PR's FOSSA issues, and a watch on the FOSSA check",
+  "modules": ["./register.tsx"]
+}
