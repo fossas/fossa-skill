@@ -62,11 +62,24 @@ export async function pullRequest(run: Run, repo: string, pr: number | undefined
   }
 }
 
+// Values that end up in a REST path or on the gh command line are shape-checked first, so a
+// model-supplied string cannot traverse the path or land in gh's flag parser.
+const REPO_RE = /^[\w.-]+\/[\w.-]+$/
+const RUN_ID_RE = /^\d+$/
+export function assertRepo(repo: string): string {
+  if (!REPO_RE.test(repo)) throw new Error(`Invalid repository "${repo}": expected owner/name.`)
+  return repo
+}
+export function assertRunId(runId: string): string {
+  if (!RUN_ID_RE.test(runId)) throw new Error(`Invalid run id "${runId}": expected digits.`)
+  return runId
+}
+
 // The commit the PR branched from, which is what CI analyzed on the base branch.
 export async function mergeBase(run: Run, repo: string, baseRef: string, headSha: string): Promise<string> {
   // Encode each part, so a branch such as release#1 survives; keep the slashes.
   const base = baseRef.split('/').map(encodeURIComponent).join('/')
-  const out = await run(['api', `repos/${repo}/compare/${base}...${headSha}`, '--jq', '.merge_base_commit.sha'])
+  const out = await run(['api', `repos/${assertRepo(repo)}/compare/${base}...${headSha}`, '--jq', '.merge_base_commit.sha'])
   return out.trim()
 }
 
@@ -74,11 +87,11 @@ export async function mergeBase(run: Run, repo: string, baseRef: string, headSha
 // project locator. Used when the locator is not the default one, for example
 // when CI passes --project or the repo has a .fossa.yml.
 export async function projectFromJobLog(run: Run, repo: string, jobId: string): Promise<string | undefined> {
-  const log = await run(['api', `repos/${repo}/actions/jobs/${jobId}/logs`])
+  const log = await run(['api', `repos/${assertRepo(repo)}/actions/jobs/${assertRunId(jobId)}/logs`])
   const match = log.match(/https:\/\/[^\s/]+\/projects\/([^/\s]+)\/refs\//)
   return match?.[1] ? decodeURIComponent(match[1]) : undefined
 }
 
 export async function rerunFailed(run: Run, repo: string, runId: string): Promise<void> {
-  await run(['run', 'rerun', runId, '--failed', '-R', repo])
+  await run(['run', 'rerun', assertRunId(runId), '--failed', '-R', assertRepo(repo)])
 }

@@ -222,16 +222,25 @@ export async function prReport(deps: Deps, repoArg: string | undefined, prArg: n
   let head = await fossa.revisionIssues(`${projectLocator}$${pr.headSha}`)
   if (head.kind === 'not-found' && pr.fossaCheck?.jobId) {
     const fromLog = await projectFromJobLog(deps.gh, repo, pr.fossaCheck.jobId).catch(() => undefined)
-    const logOrg = fromLog?.match(/^custom\+(\d+)\//)?.[1]
-    // A key only sees its own org, so a project in another org reads as not found.
-    if (logOrg && Number(logOrg) !== orgId) {
-      throw new Error(
-        `CI uploads ${repo} to FOSSA org ${logOrg} (project ${fromLog}), but the API key belongs to org ${orgId}. Use a full-access key from org ${logOrg}.`,
-      )
-    }
-    if (fromLog && fromLog !== projectLocator) {
-      projectLocator = fromLog
-      head = await fossa.revisionIssues(`${projectLocator}$${pr.headSha}`)
+    if (fromLog) {
+      // The job log is third-party content (PR-controlled text can echo into it), so a scraped locator is
+      // only trusted when it is a custom+ project of the key's own org; anything else is ignored.
+      const logOrg = fromLog.match(/^custom\+(\d+)\//)?.[1]
+      if (!logOrg) {
+        throw new Error(
+          `The FOSSA link in the CI job log names ${fromLog}, which is not a custom+<org>/… project; refusing to use it. Pass the project locator explicitly.`,
+        )
+      }
+      // A key only sees its own org, so a project in another org reads as not found.
+      if (Number(logOrg) !== orgId) {
+        throw new Error(
+          `CI uploads ${repo} to FOSSA org ${logOrg} (project ${fromLog}), but the API key belongs to org ${orgId}. Use a full-access key from org ${logOrg}.`,
+        )
+      }
+      if (fromLog !== projectLocator) {
+        projectLocator = fromLog
+        head = await fossa.revisionIssues(`${projectLocator}$${pr.headSha}`)
+      }
     }
   }
 

@@ -30,7 +30,9 @@ export const IGNORE_REASONS = [
   'Fixed',
   'Under_investigation',
   'Vulnerable_code_not_present',
-  'Vulnerable_code_cannot_be_controlled',
+  // Core's write-side name (shared/issuesV2/vex.ts VULNERABLE_CODE_CANNOT_BE_CONTROLLED); the swagger
+  // schema VulnIgnoreReason.yaml lists a shorter form that Core rejects with 400 Invalid reason.
+  'Vulnerable_code_cannot_be_controlled_by_adversary',
   'Component_not_present',
   'Vulnerable_code_not_in_execute_path',
   'Inline_mitigations_already_exist',
