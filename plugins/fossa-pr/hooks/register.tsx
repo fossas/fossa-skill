@@ -119,6 +119,11 @@ export const register: Register = on => {
             {r.issues.length} {r.issues.length === 1 ? 'issue' : 'issues'}: {compared}
           </Text>
         )}
+        {(r.warnings ?? []).map((warning, i) => (
+          <Text key={`warning-${i}`} dimColor wrap="wrap">
+            {warning}
+          </Text>
+        ))}
 
         {r.issues.map(issue => (
           <Box key={`issue-${issue.id}`} flexDirection="column">
@@ -181,7 +186,7 @@ async function load($: EngineInterface, repo: string, pr: number): Promise<strin
       return text
     }
     await update($, report, () => r)
-    await update($, note, () => noteOf(r))
+    await update($, note, () => null)
     return summaryOf(r)
   } catch (err) {
     const text = `Could not load the FOSSA issues: ${messageOf(err)}`
@@ -203,7 +208,7 @@ async function showToolResult($: EngineInterface, ran: ToolCallResult): Promise<
     await update($, note, () => ran.text ?? 'fossa_pr_issues failed.')
   } else {
     await update($, report, () => r)
-    await update($, note, () => noteOf(r))
+    await update($, note, () => null)
   }
   let opened
   try {
@@ -402,11 +407,6 @@ function reportOf(result: Partial<McpToolResult>): PrReport | undefined {
     }
   }
   return undefined
-}
-
-// The report's warnings (for example FOSSA links in the CI log on another host) go in the pane's note slot.
-function noteOf(r: PrReport): string | null {
-  return r.warnings?.length ? r.warnings.join('\n') : null
 }
 
 // One line for the transcript: the pane shows the rest.
