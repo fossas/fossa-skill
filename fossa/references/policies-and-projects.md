@@ -41,19 +41,19 @@ Teams scope projects for filtering and RBAC. **`fossa analyze -T/--team <name>` 
 
 ```
 GET  /api/teams                # [{ id, name, organizationId, defaultRoleId, autoAddUsers, teamUsers, teamProjectsCount, teamReleaseGroupsCount, … }]
-                               #   (deprecated in favour of the paginated GET /api/v2/teams — routes/teams.ts:95-97)
-POST /api/teams                # { "name", "autoAddUsers": false, "defaultRoleId" }   (informal — the dashboard's route)
+                               #   (deprecated in favour of the paginated GET /api/v2/teams — routes/teams.ts:139-141)
+POST /api/teams                # { "name", "autoAddUsers": false, "defaultRoleId", "uniqueIdentifier"?, "teamGroupIds"? }   (informal — the dashboard's route; the two optional keys are a stable external id and the team-groups path, routes/teams.ts:246-302)
 GET  /api/teams/{id}           # one team, plus teamProjects: [{ projectId, … }], teamUsers: [{ userId, roleId }], teamReleaseGroups
 PUT  /api/teams/{id}           # rename / settings
 PUT  /api/teams/{id}/projects  # { "action": "add" | "remove" | "replace", "projects": ["<project locator>", …] | "all" }   ⚠ see below
 ```
 
 - `defaultRoleId` is the org's team role id — copy it from an existing team in the list or `GET /api/roles` (a "Team Viewer"-style role); ids differ per org.
-- Creating is permission-gated (`routes/teams.ts:179` → 403 without the team-create permission; a push-only token was observed to 403).
-- **Assigning existing projects: `PUT /api/teams/{id}/projects` and ALWAYS send `"action": "add"`.** Omitting `action` (or sending `"replace"`) **replaces the team's whole project set** — every project not in your list is unassigned (`TeamProject.destroy` by team, then bulk insert: `modules/RoleManager/teams.ts:343-364`; body / permission / execution switches at `routes/teams.ts:829-833, 868-884, 910-930`). `add` 403s if any locator is outside the org or the caller lacks Edit on it; the replace path needs add AND remove permission. `"remove"` is the inverse. Read-back: `{ id, projects: [locators] }`; unknown team = bare 404. New uploads take `-T "<name>"`. List a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
+- Creating is permission-gated (`routes/teams.ts:223` → 403 without the team-create permission; a push-only token was observed to 403).
+- **Assigning existing projects: `PUT /api/teams/{id}/projects` and ALWAYS send `"action": "add"`.** Omitting `action` (or sending `"replace"`) **replaces the team's whole project set** — every project not in your list is unassigned (`deleteAllTeamProjects` for the team, then `insertTeamProjects`: `modules/RoleManager/teams.ts:366-392`; body / permission / execution switches at `routes/teams.ts:862-866, 903-919, 945-968`). `add` 403s if any locator is outside the org or the caller lacks Edit on it; the replace path needs add AND remove permission. `"remove"` is the inverse. Read-back: `{ id, projects: [locators] }`; unknown team = bare 404. New uploads take `-T "<name>"`. List a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
 - The project-update endpoint (`PUT /api/projects/{PROJECT}`) reads no team field (traced: `routes/projects/updateProject.ts`) — a team key there 200s and changes nothing.
 
-(source: `routes/teams.ts` at FOSSA develop `5a248a1963`, re-pinned 2026-10-28 — the earlier `22fc86d76b` pin was a prototype-branch snapshot, not develop — `GET /api/teams` :142-219, `POST /api/teams` :220-321 reads `name` / `autoAddUsers` / `defaultRoleId` (:261-263, :306-308), `PUT /api/teams/:id` :322-337, `GET /api/teams/:id` :338-395, `PUT /api/teams/:id/projects` :850-993. Live-observed 2026-09-16: create, `?teamId=` filter, the 403 on a push-only token; everything else traced, not observed.)
+(source: `routes/teams.ts` at FOSSA develop `5a248a1963`, re-pinned 2026-10-28 — the earlier `22fc86d76b` pin was a prototype-branch snapshot, not develop — `GET /api/teams` :142-219, `POST /api/teams` :220-321 reads `name` / `autoAddUsers` / `defaultRoleId` / `uniqueIdentifier` (:261-264, :306-309; `teamGroupIds` branch :246-302), `PUT /api/teams/:id` :322-337, `GET /api/teams/:id` :338-395, `PUT /api/teams/:id/projects` :850-993. Live-observed 2026-09-16: create, `?teamId=` filter, the 403 on a push-only token; everything else traced, not observed.)
 
 ## Release groups
 
