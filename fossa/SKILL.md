@@ -42,7 +42,7 @@ enc() { jq -rn --arg v "$1" '$v|@uri'; }
 | Look up a package/coordinate in FOSSA's registry; locator grammar                          | `references/packages.md`              |
 | Review copied-OSS-code snippet matches (AI-code guardrails, vendored C/C++)                | `references/snippets.md`              |
 | Browse the Package Index; block/unblock packages                                           | `references/package-blocking.md`      |
-| Read or update policies; project settings; teams (create, assign projects); release groups | `references/policies-and-projects.md` |
+| Manage policies, project settings, release groups, teams (create, assign, members) & users | `references/policies-and-projects.md` |
 
 ## Ground rules (apply to every workflow)
 
