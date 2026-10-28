@@ -103,4 +103,4 @@ GET  /api/project_group/attribution/{taskId}
   → { "status": "CREATED"|"ASSIGNED"|"RUNNING"|"SUCCEEDED"|"FAILED", "url": … }
 ```
 
-Poll until `SUCCEEDED`, then download from `url`. Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components.
+Poll until `SUCCEEDED`, then download from `url`. Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components. Root project components appear in these reports only with `includeFOSSADependencies=true`, and carry their own licenses only with `includeProjectLicense` / `includeLicenseScan` (see `reports.md`, CORE-7693).
