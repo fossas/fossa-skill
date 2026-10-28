@@ -19,7 +19,7 @@ GET /api/packages/{package}/versions/{version}/vulnerabilities
 
 - Package locators are **version-less** (`npm+lodash`), URL-encoded in paths.
 - Filters on the list: `packageName` (partial), `depth[]` (direct|transitive), `labels[]`, `projectName`, `sources[]`, `visibility[]`, `blockTypes[]` (has_blocked_packages|no_blocked_packages), `cve`, `cwes[]`, `fixTypes[]`, `severities[]`, `teamIds[]`, `locators[]`, `sort` (match|alphabetical|usage). Page cap 50.
-- **The index is a cache** — check `lastCacheDate` before treating counts as current (blocked counts, however, are computed live from the rules).
+- **The index is a cache** — check `lastCacheDate` (ISO string; the key is omitted when no cached package rows are visible to the caller — before the first cache build, or when project/team RBAC hides every project from a scoped key — `modules/PackageCacheManager/reader.ts:1348-1355`, `routes/organizationPackages/index.ts:128`, `shared/organizationPackages/response.ts:161-164`; FOSSA develop `5a248a1963`, 2026-10-28) before treating counts as current (blocked counts, however, are computed live from the rules).
 
 ## Blocking a package — informal (what the UI calls)
 
@@ -32,7 +32,7 @@ POST /api/packages/{url-encoded package locator}/rules
 ```
 
 - `versions`: `"ALL"` (one all-versions rule; replaces any single-version rules for that package) or `["4.17.20", "4.17.21"]` (one rule per version; **additive and idempotent**).
-- `policyIds` must be **your org's QUALITY policy ids** (resolve via `GET /api/policies`, filter `type == "QUALITY"`). Pass only your own policy ids.
+- `policyIds` must be **your org's QUALITY policy ids** (resolve via `GET /api/policies`, filter `type == "QUALITY"`). Pass only your own policy ids: since FOSSA `6b69d141ef` (2026-10) the route loads the policies through the caller's Edit scope and answers **404 `Could not find one or more policies, or you do not have permission to edit them.`** when any id is another org's or one you can't edit (`routes/organizationPackages/index.ts:427-435`) — nothing is written in that case.
 - Each write creates a new policy version (audit-logged).
 
 ## What happens after a block
