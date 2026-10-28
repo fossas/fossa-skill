@@ -224,11 +224,12 @@ export async function prReport(deps: Deps, repoArg: string | undefined, prArg: n
     const fromLog = await projectFromJobLog(deps.gh, repo, pr.fossaCheck.jobId).catch(() => undefined)
     if (fromLog) {
       // The job log is third-party content (PR-controlled text can echo into it), so a scraped locator is
-      // only trusted when it is a custom+ project of the key's own org; anything else is ignored.
-      const logOrg = fromLog.match(/^custom\+(\d+)\//)?.[1]
+      // only trusted when it names the key's own org: any FOSSA project locator of the form
+      // <fetcher>+<orgId>/<name> (custom+, sbom+, binary+, …). Anything without an org component is refused.
+      const logOrg = fromLog.match(/^[a-z]+\+(\d+)\//)?.[1]
       if (!logOrg) {
         throw new Error(
-          `The FOSSA link in the CI job log names ${fromLog}, which is not a custom+<org>/… project; refusing to use it. Pass the project locator explicitly.`,
+          `The FOSSA link in the CI job log names ${fromLog}, which carries no FOSSA organization id, so it cannot be verified as yours; refusing to use it. FOSSA has no analysis of this commit under ${projectLocator}.`,
         )
       }
       // A key only sees its own org, so a project in another org reads as not found.

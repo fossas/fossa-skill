@@ -31,7 +31,8 @@ export type PullRequest = {
 const PASS_THEM = 'Pass repo (owner/name) and pr: this server runs in'
 
 export async function resolveRepo(run: Run, repo: string | undefined, cwd: string): Promise<string> {
-  if (repo) return repo
+  // Every repo value funnels through here, so a model-supplied one is shape-checked once, up front.
+  if (repo) return assertRepo(repo)
   try {
     return (await run(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'], { cwd })).trim()
   } catch (err) {
