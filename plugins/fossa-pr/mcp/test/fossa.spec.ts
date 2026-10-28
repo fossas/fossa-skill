@@ -197,3 +197,45 @@ test('parseLocator splits a dependency locator', () => {
   assert.deepEqual(parseLocator('npm+@scope/pkg$1.2.3'), { fetcher: 'npm', name: '@scope/pkg', version: '1.2.3' })
   assert.deepEqual(parseLocator('custom+1/x'), { fetcher: 'custom', name: '1/x' })
 })
+
+test('a project read in flight across an ignore neither caches its stale body nor is shared afterwards', async () => {
+  let clock = 0
+  const calls: Call[] = []
+  const held: Array<() => void> = []
+  const client = new FossaClient({
+    apiKey: 'key',
+    endpoint: 'https://fossa.test',
+    now: () => clock,
+    sleep: async ms => {
+      clock += ms
+    },
+    // GETs stay open until released; the PUT answers at once.
+    fetch: (url, init) =>
+      new Promise(resolve => {
+        const call = { method: String(init.method), url, at: clock, body: init.body as string | undefined }
+        calls.push(call)
+        const respond = () => resolve(new Response(JSON.stringify(call.method === 'PUT' ? { count: 1 } : SCANNED), { status: 200 }))
+        if (call.method === 'GET') held.push(respond)
+        else respond()
+      }),
+  })
+  // Bounded: a read served from the cache never reaches fetch, and the test must fail rather than spin.
+  const started = async (count: number) => {
+    for (let turn = 0; turn < 20 && calls.length < count; turn++) await new Promise(resolve => setImmediate(resolve))
+    assert.equal(calls.length, count, `expected request ${count} to reach the network`)
+  }
+
+  const before = client.revisionIssues('custom+1/github.com/o/r$abc')
+  await started(1)
+  await client.ignoreIssue({ id: 7, category: 'vulnerability', projectLocator: 'custom+1/github.com/o/r', notes: 'n' })
+  held.shift()!() // the pre-ignore read now answers
+  await before
+
+  const after = client.revisionIssues('custom+1/github.com/o/r$abc')
+  await started(3)
+  held.shift()!()
+  await after
+
+  // GET, PUT, GET: the read that started before the ignore did not seed the cache.
+  assert.deepEqual(calls.map(call => call.method), ['GET', 'PUT', 'GET'])
+})

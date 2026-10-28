@@ -68,7 +68,10 @@ export async function pullRequest(run: Run, repo: string, pr: number | undefined
 const REPO_RE = /^[\w.-]+\/[\w.-]+$/
 const RUN_ID_RE = /^\d+$/
 export function assertRepo(repo: string): string {
-  if (!REPO_RE.test(repo)) throw new Error(`Invalid repository "${repo}": expected owner/name.`)
+  // owner/name with no dot segments: `../repo` or `owner/..` would otherwise walk the REST path.
+  if (!REPO_RE.test(repo) || repo.split('/').some(part => part === '.' || part === '..')) {
+    throw new Error(`Invalid repository "${repo}": expected owner/name.`)
+  }
   return repo
 }
 export function assertRunId(runId: string): string {
@@ -87,10 +90,17 @@ export async function mergeBase(run: Run, repo: string, baseRef: string, headSha
 // `fossa analyze` prints the project's dashboard link, which holds the
 // project locator. Used when the locator is not the default one, for example
 // when CI passes --project or the repo has a .fossa.yml.
-export async function projectFromJobLog(run: Run, repo: string, jobId: string): Promise<string | undefined> {
+// Only links on the configured FOSSA host count (default app.fossa.com), so a PR-controlled
+// log line that mentions some other site's /projects/…/refs/ link is skipped, not adopted.
+export function fossaHost(endpoint = process.env.FOSSA_ENDPOINT || 'https://app.fossa.com'): string {
+  return new URL(endpoint).host.toLowerCase()
+}
+export async function projectFromJobLog(run: Run, repo: string, jobId: string, host = fossaHost()): Promise<string | undefined> {
   const log = await run(['api', `repos/${assertRepo(repo)}/actions/jobs/${assertRunId(jobId)}/logs`])
-  const match = log.match(/https:\/\/[^\s/]+\/projects\/([^/\s]+)\/refs\//)
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined
+  for (const match of log.matchAll(/https:\/\/([^\s/]+)\/projects\/([^/\s]+)\/refs\//g)) {
+    if (match[1].toLowerCase() === host) return decodeURIComponent(match[2])
+  }
+  return undefined
 }
 
 export async function rerunFailed(run: Run, repo: string, runId: string): Promise<void> {

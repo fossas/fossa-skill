@@ -18,8 +18,10 @@ export type RollupItem = {
 // The FOSSA scan check: a check whose name says fossa, but not one of
 // fossabot's own checks (such as "fossabot: review"). When several
 // match, the latest counts, so an older green run cannot hide a newer red one.
+// "Latest" is by startedAt: an older run that finished after the newer one started
+// would otherwise win on completedAt and hide the newer result.
 export function fossaCheckOf(rollup: readonly RollupItem[]): FossaCheck | undefined {
-  const when = (one: RollupItem) => Date.parse(one.completedAt || one.startedAt || '') || 0
+  const when = (one: RollupItem) => Date.parse(one.startedAt || one.completedAt || '') || 0
   const item = rollup
     .filter(one => {
       const name = one.name ?? one.context ?? ''

@@ -184,6 +184,11 @@ export class FossaClient {
     for (const key of this.cache.keys()) {
       if (ofProject.test(key)) this.cache.delete(key)
     }
+    // A GET still in flight for the project is dropped from `pending` so it neither
+    // caches its pre-ignore body (see get) nor is shared with callers after the ignore.
+    for (const key of this.pending.keys()) {
+      if (ofProject.test(key)) this.pending.delete(key)
+    }
   }
 
   private async get<T>(path: string, opts: { ttlMs?: number; cacheIf?: (body: T) => boolean } = {}): Promise<T> {
@@ -193,14 +198,18 @@ export class FossaClient {
     const shared = this.pending.get(path)
     if (shared) return shared as Promise<T>
 
-    const request = this.send<T>('GET', path)
+    const request: Promise<T> = this.send<T>('GET', path)
       .then(body => {
-        if (!opts.cacheIf || opts.cacheIf(body)) {
+        // Only the request still registered as pending may cache: forgetProject
+        // unregisters in-flight reads whose project was just ignored.
+        if (this.pending.get(path) === request && (!opts.cacheIf || opts.cacheIf(body))) {
           this.cache.set(path, { expiresAt: this.now() + (opts.ttlMs ?? this.cacheTtlMs), value: body })
         }
         return body
       })
-      .finally(() => this.pending.delete(path))
+      .finally(() => {
+        if (this.pending.get(path) === request) this.pending.delete(path)
+      })
     this.pending.set(path, request)
     return request
   }

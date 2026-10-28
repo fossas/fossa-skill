@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { assertRepo, assertRunId, resolveRepo } from '../github.ts'
+import { assertRepo, assertRunId, fossaHost, projectFromJobLog, resolveRepo } from '../github.ts'
 
 test('assertRepo accepts owner/name and rejects path traversal and flags', () => {
   assert.equal(assertRepo('fossas/fossa-skill'), 'fossas/fossa-skill')
   assert.equal(assertRepo('my-org.io/repo_1.2'), 'my-org.io/repo_1.2')
-  for (const bad of ['fossas', 'fossas/skill/extra', '../../repos/x', 'owner/name?per_page=1', '--help', 'owner/name -R other']) {
+  for (const bad of ['fossas', 'fossas/skill/extra', '../../repos/x', '../repo', 'owner/..', './x', 'owner/.', 'owner/name?per_page=1', '--help', 'owner/name -R other']) {
     assert.throws(() => assertRepo(bad), /Invalid repository/, bad)
   }
 })
@@ -25,4 +25,17 @@ test('resolveRepo shape-checks an explicit repo before any gh call', async () =>
   assert.equal(called, false)
   assert.equal(await resolveRepo(run, 'fossas/fossa-skill', '/tmp'), 'fossas/fossa-skill')
   assert.equal(called, false)
+})
+
+test('projectFromJobLog takes the first FOSSA-host link and skips links on other hosts', async () => {
+  const log = [
+    'https://example.org/projects/not-fossa/refs/branch/main/abc',
+    'https://APP.fossa.com/projects/custom%2B42%2Fgithub.com%2Fo%2Fr/refs/branch/main/abc',
+    'https://app.fossa.com/projects/custom%2B42%2Fsecond/refs/branch/main/abc',
+  ].join('\n')
+  const run = async () => log
+  assert.equal(await projectFromJobLog(run, 'o/r', '123', 'app.fossa.com'), 'custom+42/github.com/o/r')
+  assert.equal(await projectFromJobLog(run, 'o/r', '123', 'fossa.example.internal'), undefined)
+  assert.equal(fossaHost('https://fossa.example.internal:8443/'), 'fossa.example.internal:8443')
+  assert.equal(fossaHost(), 'app.fossa.com')
 })
