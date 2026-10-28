@@ -181,7 +181,7 @@ async function load($: EngineInterface, repo: string, pr: number): Promise<strin
       return text
     }
     await update($, report, () => r)
-    await update($, note, () => null)
+    await update($, note, () => noteOf(r))
     return summaryOf(r)
   } catch (err) {
     const text = `Could not load the FOSSA issues: ${messageOf(err)}`
@@ -203,7 +203,7 @@ async function showToolResult($: EngineInterface, ran: ToolCallResult): Promise<
     await update($, note, () => ran.text ?? 'fossa_pr_issues failed.')
   } else {
     await update($, report, () => r)
-    await update($, note, () => null)
+    await update($, note, () => noteOf(r))
   }
   let opened
   try {
@@ -404,11 +404,17 @@ function reportOf(result: Partial<McpToolResult>): PrReport | undefined {
   return undefined
 }
 
+// The report's warnings (for example FOSSA links in the CI log on another host) go in the pane's note slot.
+function noteOf(r: PrReport): string | null {
+  return r.warnings?.length ? r.warnings.join('\n') : null
+}
+
 // One line for the transcript: the pane shows the rest.
 function summaryOf(r: PrReport): string {
+  const warn = r.warnings?.length ? ` ${r.warnings.join(' ')}` : ''
   const head = `${r.repo}#${r.pr}`
-  if (r.status === 'waiting') return `${head}: FOSSA is still scanning this commit.`
-  if (r.status === 'not-analyzed') return `${head}: FOSSA has no analysis of this commit.`
+  if (r.status === 'waiting') return `${head}: FOSSA is still scanning this commit.${warn}`
+  if (r.status === 'not-analyzed') return `${head}: FOSSA has no analysis of this commit.${warn}`
   const n = r.issues.length
   if (n === 0) return `${head}: no FOSSA issues.`
   const fresh = r.issues.filter(issue => issue.isNew).length

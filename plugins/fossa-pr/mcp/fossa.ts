@@ -73,7 +73,8 @@ const SCAN_WAITS_MS = [3000, 6000, 12000]
 const MAX_RETRY_AFTER_MS = 60_000
 const SERVER_ERROR_WAITS_MS = [2000, 5000]
 export const DEFAULT_ENDPOINT = 'https://app.fossa.com'
-// The host part of an endpoint; FossaClient accepts a scheme-less endpoint, URL does not.
+// The host part of an endpoint. A scheme-less value is read as https here so the host can still be
+// compared; FossaClient requests themselves need a scheme in FOSSA_ENDPOINT (fetch rejects one without).
 export function hostOf(endpoint: string): string {
   return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(endpoint) ? endpoint : `https://${endpoint}`).host.toLowerCase()
 }

@@ -101,7 +101,8 @@ export class FossaHostMismatch extends Error {
   readonly configured: string
   constructor(hostsSeen: string[], configured: string) {
     // The hosts are PR-controlled log text: shown as data (capped, truncated), never as an instruction.
-    const shown = hostsSeen.slice(0, 3).map(host => (host.length > 100 ? `${host.slice(0, 100)}…` : host))
+    const printable = (host: string) => (/^[A-Za-z0-9.:_-]+$/.test(host) ? host : '(unprintable host)')
+    const shown = hostsSeen.slice(0, 3).map(host => (host.length > 100 ? `${printable(host.slice(0, 100))}…` : printable(host)))
     const more = hostsSeen.length > 3 ? ` and ${hostsSeen.length - 3} more` : ''
     super(
       `The CI job log links FOSSA projects only on hosts other than ${configured} (log text, not verified): ${shown.join(', ')}${more}. If your CI uploads to one of them, check FOSSA_ENDPOINT.`,

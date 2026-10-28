@@ -39,7 +39,7 @@ test('projectFromJobLog takes the first FOSSA-host link and skips links on other
   // Same log read with another configured host: the links are there but on the wrong host, which is reported, not hidden.
   await assert.rejects(projectFromJobLog(run, 'o/r', '123', 'fossa.example.internal'), FossaHostMismatch)
   assert.equal(hostOf('https://fossa.example.internal:8443/'), 'fossa.example.internal:8443')
-  assert.equal(hostOf('fossa.acme.internal'), 'fossa.acme.internal') // scheme-less, as FossaClient accepts it
+  assert.equal(hostOf('fossa.acme.internal'), 'fossa.acme.internal') // scheme-less input is read as https; FossaClient itself still needs a scheme
   assert.equal(new FossaClient({ apiKey: 'k', fetch: async () => new Response('{}') }).host, 'app.fossa.com')
   assert.equal(new FossaClient({ apiKey: 'k', endpoint: '', fetch: async () => new Response('{}') }).host, 'app.fossa.com') // set-but-empty FOSSA_ENDPOINT
   assert.equal(new FossaClient({ apiKey: 'k', endpoint: 'HTTPS://Fossa.Test/', fetch: async () => new Response('{}') }).host, 'fossa.test')
@@ -66,6 +66,12 @@ test('the host-mismatch note caps and truncates the hosts it repeats from the lo
     assert.match(err.message, /: a\.example, b\.example, c\.example and 2 more\./)
     assert.doesNotMatch(err.message, /x{101}/)
     assert.doesNotMatch(err.message, /set FOSSA_ENDPOINT to/)
+    return true
+  })
+  const odd = "https://user:pass@a'b.evil/projects/p/refs/branch/main/abc"
+  await assert.rejects(projectFromJobLog(async () => odd, 'o/r', '1', 'app.fossa.com'), (err: Error) => {
+    assert.match(err.message, /\(unprintable host\)/)
+    assert.doesNotMatch(err.message, /user:pass/)
     return true
   })
   const longOnly = `https://${'x'.repeat(150)}.example/projects/p/refs/branch/main/abc`
