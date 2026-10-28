@@ -27,7 +27,7 @@ Walks the directory, discovers projects per ecosystem (30+ strategies: npm/yarn/
 | Flag | What it finds | Data uploaded | Notes |
 |---|---|---|---|
 | `--detect-vendored` | Whole vendored OSS libraries (VSI) | SHA-256 file fingerprints | ~35k-file soft limit; direct deps only |
-| `--snippet-scan` | Copied OSS **snippets** in your files | Fingerprints + matched files' full content (30-day retention) | Enterprise + org enablement; incompatible with `--output`; summary line: "Unique Files with matches found: N" |
+| `--snippet-scan` | Copied OSS **snippets** in your files | Fingerprints + matched files' full content (30-day retention) | Enterprise + org enablement; incompatible with `--output`; summary line: "Unique Files with matches found: N" — match records become queryable later, sometimes never; see `references/snippets.md` |
 | `--x-vendetta` | Vendored OSS, holistic (experimental) | MD5 file hashes only | Incompatible with `--output` (hard error) |
 
 **Scoping the first-party-code engines is not the same as scoping analysis.** `paths.exclude` / `--exclude-path` filter target discovery only. `--x-vendetta` and `--snippet-scan` ignore them and honor just `vendoredDependencies.licenseScanPathFilters.exclude` globs in `.fossa.yml` (the pair `dir/*` plus `dir/**` is what was verified). Live-verified on one tree: `paths.exclude` on a vendored OpenSSL directory left OpenSSL in the vendetta results; the `licenseScanPathFilters` exclude removed it. To exclude a directory from everything, set both. Both engines report the closest match they can find, so treat a reported **version** of vendored C/C++ code as a lead and confirm it against the copy's own version header or the git submodule pin before relying on its CVE list.
