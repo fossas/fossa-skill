@@ -2,31 +2,41 @@
 
 ## Policies
 
-A policy is a set of rules (allow/flag/deny per license, plus security/quality rules) attached to projects. Types: `LICENSING`, `SECURITY`, `QUALITY`.
+A policy is a set of rules (allow/flag/deny per license, plus security/quality rules) attached to projects. Types: `LICENSING`, `SECURITY`, `QUALITY`, `SBOM`.
 
 ```
-GET  /api/policies              # list all org policies (id, title, type, rules)
-GET  /api/policies/{id}         # read one, including its rules
-POST /api/policies              # create
-PUT  /api/policies/{id}         # update (title, rules) — the documented one
-DELETE /api/policies/{id}       # delete (premium feature)
+GET  /api/policies                 # list all org policies (id, title, type, rules)
+GET  /api/policies/{id}            # read one, including its rules
+POST /api/policies                 # create — body { title, type, template?, extendedPolicyId? }; what gets seeded: see below
+PUT  /api/policies/{id}            # title, description, defaultAction + the four licensing flags; a "rules" array here is never read
+POST /api/policies/{id}/rules      # APPEND one rule { type, licenseId } — 400 if that license already has a rule; see below
+PUT  /api/policies/{id}/rules      # ⚠ REPLACES the whole rule set — anything omitted is deleted
+DELETE /api/policies/{id}          # delete
 ```
 
-- Only `PUT /api/policies/{id}` is in the published API spec; the rest are the same endpoints the dashboard uses (stable, informal).
+- None of the policies endpoints are in the served API spec — `PUT /api/policies/{id}` carries `x-internal: true` (`docs/swagger/paths/policies/updatePolicy.yaml:2`), so the whole family is informal, dashboard-stable. Every write needs a premium subscription (403 `Feature requires "premium" subscription access level` otherwise; on-prem is exempt — `routes/policies/index.ts:217, 261, 323`; `routes/rules/index.ts:52, 72, 95, 152, 167, 185, 205`).
+- **`PUT /api/policies/{id}` never persists rules.** Its body is `title`, `description`, `defaultAction` and the licensing flags `intelligentAutoIgnoreEnabled`, `onlyConcludedLicensesEnabled`, `unconcludedIssueScanningEnabled`, `multiLicenseConclusionsEnabled` (`routes/policies/index.ts:258-272`); a `rules` array is ignored — the existing rules stay exactly as they were and `latestVersion.rulesHash` does not change (live-observed 2026-09-10, PR #8 by asalminen). Rules live on the sub-resource.
+- **Rules sub-resource** (`routes/rules/index.ts`): `POST /api/policies/{id}/rules` appends ONE rule — `{ "type": "approved_license" | "flagged_license" | "denied_license", "licenseId": "<FOSSA license id — the SPDX id where one exists; GET the policy to see the exact form>" }` (`:49-68`). `addRule` merges it into the existing set and re-runs the whole-set checks (`models/policy/model.ts:397-406` → `modules/PolicyManager/index.ts:208-258`): the same license with the same action → 400 `Multiple rules with the same license ID and action were provided`; a different action → 400 `Conflicting rules: license "<id>" cannot be both <a> and <b>`. A policy built from a licensing template already carries a rule for every catalogued license, so on those the append path only works for licenses the template lacks; change an existing rule with `PUT /api/policies/{id}/rules/{ruleId}` (`:164-181`), move licensing rules between columns with `PATCH /api/policies/{id}/rules` `{ "newRules": [...] }` (`:182-201`), or `DELETE /api/policies/{id}/rules/{ruleId}` (`:149-163`) then `POST`. `licenseId` is unvalidated `TEXT` (`models/licensingrule/index.ts:17-19`; the single-rule POST runs no validator), so a wrong id returns 200 and makes a rule that never matches — read the rule back. For bulk: `POST /api/policies/{id}/rules/bulk` `{ "newRules": [...] }` (LICENSING only, `:69-91`) or `GET /api/policies/{id}/export` → `POST /api/policies/import` (admin-only multipart `policyFile`, `routes/policies/index.ts:118-213`); every single-rule POST creates a new policy version, so never loop it over a catalogue.
+- **Creating**: `POST /api/policies` reads `title`, `type`, `template`, `extendedPolicyId` (`routes/policies/index.ts:214-257`). SECURITY / QUALITY / SBOM policies are always seeded from the type's default template (`security_default` / `quality_default` / `sbom_default`, `models/policy/model.ts:103-115`); a LICENSING policy is empty unless you pass `template` (a template file name such as `standard_bundle`, `hosted_service`, `single_binary`, each a full rule set over the license catalogue, `:116-128`) or `extendedPolicyId` (clones an existing policy's rules, `:131-162`). A policy created through the API without `defaultAction` gets `APPROVE` (`modules/PolicyManager/index.ts:472`); change it with `PUT /api/policies/{id}`.
 - The common flow is _resolve name → id, then act_: list policies, match on `title`, use the `id`. (FOSSA's own CLI does exactly this when creating release groups.)
-- **Policy edits are org-visible and affect issue scans on every project using the policy.** Read the policy first, show the user what will change, and prefer additive rule changes over wholesale replaces of a rules array you haven't fully read.
+- **Policy edits are org-visible and affect issue scans on every project using the policy.** Read the policy first, show the user what will change, and prefer additive rule changes (`POST .../rules`, one license at a time) over `PUT .../rules`, which replaces the whole set — never send it a rules array you haven't fully read.
 - To change which policy a _project_ uses, update the project (below) rather than editing the policy.
+
+(source: FOSSA develop `5a248a1963`, 2026-10-28 — `routes/policies/index.ts` list :56, read :98, export :118-174, import :175-213, create :214-257, update :258-322, delete :323; `routes/rules/index.ts` POST :49-68, bulk :69-91, PUT replace :92-107, DELETE one :149-163, PUT one :164-181, PATCH :182-201, DELETE many :202-221; dup/conflict checks `modules/PolicyManager/index.ts:208-258`; `models/policy/model.ts:103-162` create, `:367-432` replace/add. Live-observed 2026-09-10 by asalminen (PR #8): the `PUT /api/policies/{id}` rules no-op and the singular project policy fields round-trip; everything else traced, not observed.)
 
 ## Projects
 
 ```
 GET /api/projects?count=100&page=1     # list org projects (informal; the documented list is GET /api/v2/projects)
 GET /api/projects/{PROJECT}            # one project — settings, default branch, policy ids
-PUT /api/projects/{PROJECT}            # update settings (title, policies, default branch…)
+PUT /api/projects/{PROJECT}            # update settings (title, default branch, the four policy-id fields — see below…)
+PUT /api/v2/projects/policy?policyId={id}&locators[]=…   # documented bulk attach (updateProjectsPolicies); infers the field from the policy's type — LICENSING/SECURITY/QUALITY only; returns { locator: error } per failure
 GET /api/projects/{PROJECT}/revisions  # list scanned revisions (newest first)
 ```
 
 `{PROJECT}` = URL-encoded **project** locator (no `$revision`), e.g. `custom+1234/github.com/acme/api-server`.
+
+- **Policy attachment fields are singular and typed** — `policyId` (LICENSING), `securityPolicyId`, `qualityPolicyId`, `sbomPolicyId`; there is no `policies` array (allowlist `routes/projects/updateProject.ts:55-111`; found by asalminen, PR #8). They are permission-gated per type: without Set-policy permission for that type the key is silently dropped and the `PUT` still 200s (`specialPermissionFields` `:349-374`, the `_.omit` / `_.pick` at `:385-397`), so re-`GET` the project and compare the id instead of trusting the 200. The documented bulk route `PUT /api/v2/projects/policy` (`docs/swagger/paths/projectsV2/policy.yaml`; `routes/projectsV2/index.ts:213-222` → `bulkApplyPolicyToProjects`, `modules/PolicyManager/index.ts:839`) covers LICENSING / SECURITY / QUALITY (`policyTypeToFieldMap` `:816-820` has no SBOM entry), so `sbomPolicyId` goes through the per-project `PUT`.
 
 - **v2 list filters** (flat params): `title` (case-insensitive substring), `labels[]` (label NAMES, case-insensitive, any-match), `type[]` (container|archive|provided|autobuild|sbom|binary), `teamId` (id, array, or literal `null` = unassigned), `locators[]` (exact), `latestScan`/`lastRevisionWithin` (days), `sort` (`title_asc/desc`, `latest-scan_asc/desc`, `issues-total_asc/desc`, …; default latest-scan_desc). Response `{projects, total}` — `total` ignores pagination. `count` default 10, clamped [1, 1000]. There is NO policy filter on the list.
 - v1 `GET /api/projects` differs entirely: `fetcher=` prefix filter, `offset` (not page), default count 5000, bare-array response with the total only in the `content-range` header.
