@@ -70,6 +70,7 @@ export const TOOLS: ToolDef[] = [
         projectLocator: { type: 'string' },
         status: { type: 'string', enum: ['scanned', 'waiting', 'not-analyzed'] },
         check: { type: 'object' },
+        warnings: { type: 'array', items: { type: 'string' } },
         newCount: { type: 'integer' },
         issues: {
           type: 'array',
@@ -219,11 +220,14 @@ export async function prReport(deps: Deps, repoArg: string | undefined, prArg: n
   // what GitHub Actions checks out: custom+<org>/github.com/<owner>/<name>.
   const orgId = await fossa.organizationId()
   let projectLocator = `custom+${orgId}/github.com/${repo}`
+  const warnings: string[] = []
   let head = await fossa.revisionIssues(`${projectLocator}$${pr.headSha}`)
   if (head.kind === 'not-found' && pr.fossaCheck?.jobId) {
     const fromLog = await projectFromJobLog(deps.gh, repo, pr.fossaCheck.jobId, fossa.host).catch(err => {
-      if (err instanceof FossaHostMismatch) throw err
-      return undefined // the log is gone or unreadable: fall back to the default locator
+      // A host mismatch becomes a note on the report, never a failure: the log is PR-controlled text,
+      // and a hostile line must not be able to replace the whole report with an error.
+      if (err instanceof FossaHostMismatch) warnings.push(err.message)
+      return undefined // otherwise the log is gone or unreadable: fall back to the default locator
     })
     if (fromLog) {
       // The job log is third-party content (PR-controlled text can echo into it), so a scraped locator is
@@ -258,6 +262,7 @@ export async function prReport(deps: Deps, repoArg: string | undefined, prArg: n
     check: pr.fossaCheck,
     status: head.kind === 'scanned' ? 'scanned' : head.kind === 'waiting' ? 'waiting' : 'not-analyzed',
     issues: [],
+    ...(warnings.length > 0 && { warnings }),
   }
   if (head.kind !== 'scanned') return report
   if (!head.hasDetails) throw new Error('FOSSA returned the issue count but no details. FOSSA_API_KEY is a push-only key; use a full-access key.')
@@ -331,6 +336,11 @@ function toIssue(raw: CliIssue, baseIds: Set<number> | undefined): Issue {
 }
 
 export function describeReport(report: PrReport): string {
+  const text = describeReportBody(report)
+  return report.warnings?.length ? `${text}\n${report.warnings.join('\n')}` : text
+}
+
+function describeReportBody(report: PrReport): string {
   const head = `${report.repo}#${report.pr} "${report.title}" at ${report.headSha.slice(0, 7)}`
   const check = report.check ? `FOSSA check "${report.check.name}": ${report.check.state}${report.check.runId ? ` (runId ${report.check.runId})` : ''}.` : 'No FOSSA check on this PR.'
   if (report.status === 'waiting') return `${head}\n${check}\nFOSSA is still scanning this commit. Try again in a minute.`

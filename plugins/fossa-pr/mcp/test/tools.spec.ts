@@ -102,8 +102,12 @@ test('a FOSSA link on another host in the CI log is reported, not silently ignor
   const log = `2026-01-01T00:00:00Z     https://fossa.acme.io/projects/custom%2b42%2fmy-custom-name/refs/branch/x/${HEAD}\n`
   const { client } = fakeFossa({})
   const result = await callTool({ fossa: () => client, gh: fakeGh(log), cwd: '.' }, 'fossa_pr_issues', { repo: 'acme/api', pr: 166 })
-  assert.equal(result.isError, true)
-  assert.match(firstText(result), /fossa\.acme\.io.*FOSSA_ENDPOINT is fossa\.test/)
+  // Not a failure: the report stands (not-analyzed under the default locator) and carries the note.
+  assert.notEqual(result.isError, true)
+  assert.match(firstText(result), /has no analysis of this commit/)
+  assert.match(firstText(result), /only on hosts other than fossa\.test \(log text, not verified\): fossa\.acme\.io\./)
+  assert.doesNotMatch(firstText(result), /set FOSSA_ENDPOINT to/)
+  assert.deepEqual((result.structuredContent as { warnings?: string[] }).warnings?.length, 1)
 })
 
 test('names both orgs when the key is from another org than CI uploads to', async () => {

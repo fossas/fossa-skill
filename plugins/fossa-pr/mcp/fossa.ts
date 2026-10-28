@@ -107,7 +107,7 @@ export class FossaClient {
 
   constructor(options: ClientOptions) {
     this.apiKey = options.apiKey
-    this.endpoint = (options.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, '')
+    this.endpoint = (options.endpoint || DEFAULT_ENDPOINT).replace(/\/+$/, '') // an empty FOSSA_ENDPOINT means the default
     this.fetch = options.fetch ?? ((url, init) => fetch(url, init))
     this.sleep = options.sleep ?? realSleep
     this.now = options.now ?? Date.now

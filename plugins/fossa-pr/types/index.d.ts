@@ -45,6 +45,8 @@ export type PrReport = {
   status: 'scanned' | 'waiting' | 'not-analyzed'
   issues: Issue[]
   newCount?: number
+  // Notes the caller should see but that do not fail the report (e.g. FOSSA links in the CI log on another host).
+  warnings?: string[]
 }
 
 declare module 'claude-code' {

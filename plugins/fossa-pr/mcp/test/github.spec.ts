@@ -41,6 +41,7 @@ test('projectFromJobLog takes the first FOSSA-host link and skips links on other
   assert.equal(hostOf('https://fossa.example.internal:8443/'), 'fossa.example.internal:8443')
   assert.equal(hostOf('fossa.acme.internal'), 'fossa.acme.internal') // scheme-less, as FossaClient accepts it
   assert.equal(new FossaClient({ apiKey: 'k', fetch: async () => new Response('{}') }).host, 'app.fossa.com')
+  assert.equal(new FossaClient({ apiKey: 'k', endpoint: '', fetch: async () => new Response('{}') }).host, 'app.fossa.com') // set-but-empty FOSSA_ENDPOINT
   assert.equal(new FossaClient({ apiKey: 'k', endpoint: 'HTTPS://Fossa.Test/', fetch: async () => new Response('{}') }).host, 'fossa.test')
 })
 
@@ -49,9 +50,27 @@ test('projectFromJobLog reports FOSSA links on another host instead of silently 
   await assert.rejects(projectFromJobLog(run, 'o/r', '1', 'app.fossa.com'), (err: unknown) => {
     assert.ok(err instanceof FossaHostMismatch)
     assert.deepEqual(err.hostsSeen, ['fossa.acme.io'])
-    assert.match(err.message, /fossa\.acme\.io.*FOSSA_ENDPOINT is app\.fossa\.com/)
+    assert.match(err.message, /other than app\.fossa\.com \(log text, not verified\): fossa\.acme\.io\./)
     return true
   })
   // No FOSSA link at all is still "nothing found", not a mismatch.
   assert.equal(await projectFromJobLog(async () => 'no links here', 'o/r', '1', 'app.fossa.com'), undefined)
+})
+
+test('the host-mismatch note caps and truncates the hosts it repeats from the log', async () => {
+  const hosts = ['a.example', 'b.example', 'c.example', 'd.example', `${'x'.repeat(150)}.example`]
+  const log = hosts.map(host => `https://${host}/projects/p/refs/branch/main/abc`).join('\n')
+  await assert.rejects(projectFromJobLog(async () => log, 'o/r', '1', 'app.fossa.com'), (err: unknown) => {
+    assert.ok(err instanceof FossaHostMismatch)
+    assert.equal(err.hostsSeen.length, 5)
+    assert.match(err.message, /: a\.example, b\.example, c\.example and 2 more\./)
+    assert.doesNotMatch(err.message, /x{101}/)
+    assert.doesNotMatch(err.message, /set FOSSA_ENDPOINT to/)
+    return true
+  })
+  const longOnly = `https://${'x'.repeat(150)}.example/projects/p/refs/branch/main/abc`
+  await assert.rejects(projectFromJobLog(async () => longOnly, 'o/r', '1', 'app.fossa.com'), (err: Error) => {
+    assert.match(err.message, /x{100}…/)
+    return true
+  })
 })

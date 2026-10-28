@@ -94,14 +94,17 @@ export async function mergeBase(run: Run, repo: string, baseRef: string, headSha
 // log line that mentions some other site's /projects/…/refs/ link is skipped, not adopted. What
 // survives: a same-host link echoed into the log BEFORE the analyze step still wins (first match) —
 // the org check in tools.ts is the remaining guard, and the user confirms every write.
-// The log named FOSSA projects, but none on the configured host: a misconfigured FOSSA_ENDPOINT,
-// not a missing analysis — so the caller reports it instead of falling back to "not analyzed".
+// The log named FOSSA projects, but none on this deployment's host: either a misconfigured
+// FOSSA_ENDPOINT or PR-controlled text. The caller shows it as a note on the report, not as a failure.
 export class FossaHostMismatch extends Error {
   readonly hostsSeen: string[]
   readonly configured: string
   constructor(hostsSeen: string[], configured: string) {
+    // The hosts are PR-controlled log text: shown as data (capped, truncated), never as an instruction.
+    const shown = hostsSeen.slice(0, 3).map(host => (host.length > 100 ? `${host.slice(0, 100)}…` : host))
+    const more = hostsSeen.length > 3 ? ` and ${hostsSeen.length - 3} more` : ''
     super(
-      `The CI job log links FOSSA projects on ${hostsSeen.join(', ')}, but FOSSA_ENDPOINT is ${configured}; set FOSSA_ENDPOINT to the host your CI uploads to.`,
+      `The CI job log links FOSSA projects only on hosts other than ${configured} (log text, not verified): ${shown.join(', ')}${more}. If your CI uploads to one of them, check FOSSA_ENDPOINT.`,
     )
     this.hostsSeen = hostsSeen
     this.configured = configured

@@ -275,8 +275,12 @@ test('a read started after an ignore, while the pre-ignore read is still open, k
   held.shift()!()
   await after
 
-  // The post-ignore read cached its body: a third read is served from the cache.
-  await client.revisionIssues('custom+1/github.com/o/r$abc')
+  // The post-ignore read cached its body: a third read is served from the cache, so no fourth request
+  // starts. Checked before awaiting it — a read that did reach the network would stay held and hang.
+  const third = client.revisionIssues('custom+1/github.com/o/r$abc')
+  for (let turn = 0; turn < 20; turn++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(calls.length, 3, 'the third read must be served from the cache')
+  await third
   assert.deepEqual(calls.map(call => call.method), ['GET', 'PUT', 'GET'])
 })
 
