@@ -32,6 +32,7 @@ GET /api/projects/{PROJECT}/revisions  # list scanned revisions (newest first)
 - v1 `GET /api/projects` differs entirely: `fetcher=` prefix filter, `offset` (not page), default count 5000, bare-array response with the total only in the `content-range` header.
 - Find a project from a human name: v2 `title=` filter, confirm with the user when more than one matches.
 - The revisions response is **grouped by branch**: `{ "branch": { "master": [ { "locator": "custom+…$…", "revision_timestamp": …, "resolved": … } ] } }`. Take the newest entry of the branch you care about — its `locator` is the revision locator you need for issues/reports.
+- `PUT /api/projects/{PROJECT}` can only _clear_ a project's public-report id: a non-empty `bom_public_id` in the body is silently dropped, `""`/`null` stores NULL (`routes/projects/updateProject.ts:343-349`, since FOSSA `de507a5b4e`); the id is generated server-side only. An empty `title` or an empty `default_branch` (when one is stored) is rejected with 400 (`routes/projects/utils.ts:27-36`).
 - Update revision metadata (link, author): `PATCH /api/revisions/{REV}` (documented). Note there is no useful bare GET on that exact path in the current API docs; for package metadata use the endpoints in `packages.md`.
 
 ## Teams
@@ -40,19 +41,20 @@ Teams scope projects for filtering and RBAC. **`fossa analyze -T/--team <name>` 
 
 ```
 GET  /api/teams                # [{ id, name, organizationId, defaultRoleId, autoAddUsers, teamUsers, teamProjectsCount, teamReleaseGroupsCount, … }]
-                               #   (deprecated in favour of the paginated GET /api/v2/teams — routes/teams.ts:95-97)
-POST /api/teams                # { "name", "autoAddUsers": false, "defaultRoleId" }   (informal — the dashboard's route)
+                               #   (deprecated in favour of the paginated GET /api/v2/teams — routes/teams.ts:139-141)
+POST /api/teams                # { "name", "autoAddUsers": false, "defaultRoleId", "uniqueIdentifier"?, "teamGroupIds"? }   (informal — the dashboard's route; optional keys: see the team-groups bullet below)
 GET  /api/teams/{id}           # one team, plus teamProjects: [{ projectId, … }], teamUsers: [{ userId, roleId }], teamReleaseGroups
 PUT  /api/teams/{id}           # rename / settings
 PUT  /api/teams/{id}/projects  # { "action": "add" | "remove" | "replace", "projects": ["<project locator>", …] | "all" }   ⚠ see below
 ```
 
 - `defaultRoleId` is the org's team role id — copy it from an existing team in the list or `GET /api/roles` (a "Team Viewer"-style role); ids differ per org.
-- Creating is permission-gated (`routes/teams.ts:179` → 403 without the team-create permission; a push-only token was observed to 403).
-- **Assigning existing projects: `PUT /api/teams/{id}/projects` and ALWAYS send `"action": "add"`.** Omitting `action` (or sending `"replace"`) **replaces the team's whole project set** — every project not in your list is unassigned (`TeamProject.destroy` by team, then bulk insert: `modules/RoleManager/teams.ts:343-364`; body / permission / execution switches at `routes/teams.ts:829-833, 868-884, 910-930`). `add` 403s if any locator is outside the org or the caller lacks Edit on it; the replace path needs add AND remove permission. `"remove"` is the inverse. Read-back: `{ id, projects: [locators] }`; unknown team = bare 404. New uploads take `-T "<name>"`. List a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
+- Creating is permission-gated (`routes/teams.ts:223` → 403 without the team-create permission; a push-only token was observed to 403).
+- `uniqueIdentifier` is an optional stable external id (`routes/teams.ts:264`, `:309`). `teamGroupIds` is gated on the `teamGroups` feature flag ("Team Groups", a customer flag; `:229-230`): with the flag **off** the key is silently ignored and the team is still created with a 200 (else branch `:303-318`, `res.json(team)` at `:317`); with it **on**, a caller holding the org-wide `TeamProjectAny`/`Add` permission always clears the permission check; a team-scoped caller clears it only when the request includes **every** team group they hold add permission on — the guard compares the caller's whole add-permitted set against the ids sent, not the other way round (`:233-245`, throw `You are not permitted to add teams to these team groups.` at `:244`), and an empty `teamGroupIds` list 403s as well; each requested group must then be visible to the caller or the request 404s `Team group not found` (`:247-257`). Both throws precede `createTeam` (`:260`), so a 403 or 404 here also means no team was created.
+- **Assigning existing projects: `PUT /api/teams/{id}/projects` and ALWAYS send `"action": "add"`.** Omitting `action` (or sending `"replace"`) **replaces the team's whole project set** — every project not in your list is unassigned (`deleteAllTeamProjects` for the team, then `insertTeamProjects`: `modules/RoleManager/teams.ts:366-392`; body / permission / execution switches at `routes/teams.ts:862-866, 903-919, 945-968`). `add` 403s if any locator is outside the org or the caller lacks Edit on it; the replace path needs add AND remove permission. `"remove"` is the inverse. Read-back: `{ id, projects: [locators] }`; unknown team = bare 404. New uploads take `-T "<name>"`. List a team's projects with `GET /api/v2/projects?teamId={id}` (`teamId=null` = unassigned).
 - The project-update endpoint (`PUT /api/projects/{PROJECT}`) reads no team field (traced: `routes/projects/updateProject.ts`) — a team key there 200s and changes nothing.
 
-(source: `routes/teams.ts` at FOSSA `22fc86d76b` — `GET /api/teams` :98-169, `POST /api/teams` :176-219 reads `name` / `autoAddUsers` / `defaultRoleId`, `PUT /api/teams/:id` :278, `GET /api/teams/:id` :294-310, `PUT /api/teams/:id/projects` :816-951. Live-observed 2026-09-16: create, `?teamId=` filter, the 403 on a push-only token; everything else traced, not observed.)
+(source: `routes/teams.ts` at FOSSA develop `5a248a1963`, re-pinned 2026-10-28 — the earlier `22fc86d76b` pin was a prototype-branch snapshot, not develop — `GET /api/teams` :142-219, `POST /api/teams` :220-321 reads `name` / `autoAddUsers` / `defaultRoleId` / `uniqueIdentifier` (:261-264, :306-309; `teamGroupIds` branch :229-302, flag-gated at :229-230 on `teamGroups`, 403-before-create at :244, flagless else branch :303-318), `PUT /api/teams/:id` :322-337, `GET /api/teams/:id` :338-395, `PUT /api/teams/:id/projects` :850-993. Live-observed 2026-09-16: create, `?teamId=` filter, the 403 on a push-only token; everything else traced, not observed.)
 
 ## Release groups
 
@@ -91,16 +93,22 @@ Body: `{ "title": …, "projects": [{projectId, revisionId, branch}, …], "proj
 ```
 GET /api/project_group                          # list groups
 GET /api/project_group/{groupId}                # one group + its releases
+GET /api/project_group/{groupId}/releases?count=25&page=1   # the releases, paginated: { releases: [{ id, title, dependency_count, license_count, unresolved_*_issue_count, … }] }
 GET /api/project_group/{groupId}/all_projects   # every project across the group
+GET /api/v2/release-groups?count=10&page=1      # documented list: { releaseGroups: [{ id, title, issues, scanned, projects, publicOnPortal }], total }
+GET /api/v2/release-groups/{id}                 # documented since 2026-10 (CORE-7690): the group WITHOUT its releases —
+                                                #   { id, title, organizationId, publicOnPortal, policyId, securityPolicyId, qualityPolicyId, reportCustomText, … }
 ```
+
+(`routes/releaseGroupsV2/index.ts:42-86`, `docs/swagger/paths/releaseGroups/getReleaseGroupByIdV2.yaml`; both v2 shapes live-verified 2026-10-15 on org 32098. The v2 GET 404s for another org's id and 403s on a push-only token; pair it with `/releases` for the release list.)
 
 **Release-wide attribution report (async job + poll)** — the release-group counterpart of the revision reports in `reports.md`:
 
 ```
 POST /api/project_group/{groupId}/release/{releaseId}/attribution/{FORMAT}
-  → { "taskId": … }
+  → { "taskId": …, "reportId": "<uuid>" }
 GET  /api/project_group/attribution/{taskId}
   → { "status": "CREATED"|"ASSIGNED"|"RUNNING"|"SUCCEEDED"|"FAILED", "url": … }
 ```
 
-Poll until `SUCCEEDED`, then download from `url`. Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components. Root project components appear in these reports only with `includeFOSSADependencies=true`, and carry their own licenses only with `includeProjectLicense` / `includeLicenseScan` (see `reports.md`, CORE-7693).
+Poll until `SUCCEEDED`, then download from `url` (a signed link minted on each poll — `routes/reports.ts:86-134`). Release-group reports cover _all_ projects in the release — the right artifact when a customer ships a product composed of many scanned components. Formats on this v1 route are `HTML, MD, PDF, CSV, TXT, SPDX, SPDX_JSON, CYCLONEDX_JSON, CYCLONEDX_XML` (no `JSON`, no `SPDX3_JSON` — `routes/projectGroups.ts:1483-1491`). Two queue variants (both **documented**, since 2026-10-14, FOSSA `87ac5bc981`): `delivery=download` (`email` by default) stores the report instead of emailing it and the response's `reportId` is then fetchable at `https://app.fossa.com/attribution/{reportId}?download=true` (outside `/api`; 302 to a signed URL — details and the not-ready behaviour in `reports.md`); it cannot be combined with `isPublishing`. The v1 POST and the v2 `GET /api/v2/project_group/{groupId}/release/{releaseId}/attribution/{FORMAT}` share the handler (`routes/projectGroups/reportsV2.ts:203, 434-453`); on v2, `preview=true` or `download=true` renders synchronously instead of queueing. ⚠ **The v2 route's queued `taskId` is the job token (a UUID — `reportsV2.ts:453`), not v1's numeric task id (`legacyIntegerTaskId`, `routes/projectGroups.ts:1531`)**: poll it with `GET /api/jobs/status?jobs[]={taskId}` (see `reports.md`), because `GET /api/project_group/attribution/{taskId}` runs `Number()` on the id and 404s `Invalid task ID` for a UUID (`routes/reports.ts:91-93`). Root project components appear in these reports only with `includeFOSSADependencies=true`, and carry their own licenses only with `includeProjectLicense` / `includeLicenseScan` (see `reports.md`, CORE-7693; `routes/projectGroups/reportsV2.ts:96-110`).
