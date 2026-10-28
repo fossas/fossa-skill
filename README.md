@@ -1,6 +1,6 @@
 # fossa-skill — Claude skill for the FOSSA API
 
-A [Claude agent skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) that teaches Claude to drive FOSSA (app.fossa.com) through its REST API: check scans, pull and ignore issues, generate attribution reports and SBOMs, fix misidentified dependencies, correct licenses, and manage policies and release groups — the happy paths, with the real-world gotchas documented.
+A [Claude agent skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) that teaches Claude to drive FOSSA (app.fossa.com) through its REST API: check scans, pull and ignore issues, generate attribution reports and SBOMs, fix misidentified dependencies, correct licenses, and manage policies, teams, users, and release groups — the happy paths, with the real-world gotchas documented.
 
 The skill is plain Markdown + `curl`/`jq` recipes. No runtime, no dependencies, nothing to host — your security team can read every line of what it does.
 
@@ -33,12 +33,16 @@ The skill never asks you to paste the token into chat; recipes read it from the 
 fossa/
   SKILL.md                       # overview: auth, locators, conventions, workflow index
   references/
+    scanning.md                  # creating scans: CLI analyze, Quick Import, container images
+    sbom-import.md               # importing an SBOM file as a FOSSA project
     scans-and-issues.md          # scan status polling, listing + ignoring issues
     reports.md                   # attribution reports, SBOMs (CycloneDX/SPDX), dependency lists
     license-corrections.md       # project corrections, license conclusions — and which one you want
     dependency-fixes.md          # re-resolve, remap wrong locators, fossa-deps, user-defined deps
     packages.md                  # package index lookup, registry probes, locator grammar
-    policies-and-projects.md     # policies, project settings, release groups
+    snippets.md                  # reviewing copied-OSS-code snippet matches
+    package-blocking.md          # Package Index browsing, block/unblock packages
+    policies-and-projects.md     # policies, project settings, teams & users, release groups
 ```
 
 ## Status of this skill
