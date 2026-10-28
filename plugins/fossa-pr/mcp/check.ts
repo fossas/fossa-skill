@@ -21,7 +21,12 @@ export type RollupItem = {
 // "Latest" is by startedAt: an older run that finished after the newer one started
 // would otherwise win on completedAt and hide the newer result.
 export function fossaCheckOf(rollup: readonly RollupItem[]): FossaCheck | undefined {
-  const when = (one: RollupItem) => Date.parse(one.startedAt || one.completedAt || '') || 0
+  // gh prints unset times as 0001-01-01T00:00:00Z, which parses to a negative epoch: treat as missing.
+  const at = (value?: string) => {
+    const parsed = Date.parse(value || '')
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  }
+  const when = (one: RollupItem) => at(one.startedAt) || at(one.completedAt)
   const item = rollup
     .filter(one => {
       const name = one.name ?? one.context ?? ''

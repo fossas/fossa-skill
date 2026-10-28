@@ -6,7 +6,7 @@
     {
       "name": "fossa-pr",
       "source": "./plugins/fossa-pr",
-      "description": "FOSSA issues on a GitHub pull request, in a pane: explain, fix, ignore, or hand them to fossabot."
+      "description": "FOSSA issues on a GitHub pull request, in a pane: explain, fix, ignore, or request a fossabot upgrade PR for eligible dependency vulnerabilities."
     }
   ]
 }

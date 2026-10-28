@@ -1,6 +1,6 @@
 ---
 name: fossa-triage
-description: Triage the FOSSA issues on a GitHub pull request, for example when the FOSSA CI check (check-fossa) fails. Lists the issues, tells new ones from ones already on the base branch, and fixes, ignores, or hands each one to fossabot. Use when the user mentions FOSSA, a failing FOSSA check, or license or vulnerability issues on a PR.
+description: Triage the FOSSA issues on a GitHub pull request, for example when the FOSSA CI check (check-fossa) fails. Lists the issues, tells new ones from ones already on the base branch, and fixes or ignores each one, or requests a fossabot upgrade PR for eligible dependency vulnerabilities. Use when the user mentions FOSSA, a failing FOSSA check, or license or vulnerability issues on a PR.
 ---
 
 # FOSSA issues on a PR

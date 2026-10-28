@@ -90,16 +90,32 @@ export async function mergeBase(run: Run, repo: string, baseRef: string, headSha
 // `fossa analyze` prints the project's dashboard link, which holds the
 // project locator. Used when the locator is not the default one, for example
 // when CI passes --project or the repo has a .fossa.yml.
-// Only links on the configured FOSSA host count (default app.fossa.com), so a PR-controlled
-// log line that mentions some other site's /projects/…/refs/ link is skipped, not adopted.
-export function fossaHost(endpoint = process.env.FOSSA_ENDPOINT || 'https://app.fossa.com'): string {
-  return new URL(endpoint).host.toLowerCase()
-}
-export async function projectFromJobLog(run: Run, repo: string, jobId: string, host = fossaHost()): Promise<string | undefined> {
-  const log = await run(['api', `repos/${assertRepo(repo)}/actions/jobs/${assertRunId(jobId)}/logs`])
-  for (const match of log.matchAll(/https:\/\/([^\s/]+)\/projects\/([^/\s]+)\/refs\//g)) {
-    if (match[1].toLowerCase() === host) return decodeURIComponent(match[2])
+// Only links on this deployment's FOSSA host count (the client's endpoint host), so a PR-controlled
+// log line that mentions some other site's /projects/…/refs/ link is skipped, not adopted. What
+// survives: a same-host link echoed into the log BEFORE the analyze step still wins (first match) —
+// the org check in tools.ts is the remaining guard, and the user confirms every write.
+// The log named FOSSA projects, but none on the configured host: a misconfigured FOSSA_ENDPOINT,
+// not a missing analysis — so the caller reports it instead of falling back to "not analyzed".
+export class FossaHostMismatch extends Error {
+  readonly hostsSeen: string[]
+  readonly configured: string
+  constructor(hostsSeen: string[], configured: string) {
+    super(
+      `The CI job log links FOSSA projects on ${hostsSeen.join(', ')}, but FOSSA_ENDPOINT is ${configured}; set FOSSA_ENDPOINT to the host your CI uploads to.`,
+    )
+    this.hostsSeen = hostsSeen
+    this.configured = configured
   }
+}
+export async function projectFromJobLog(run: Run, repo: string, jobId: string, host: string): Promise<string | undefined> {
+  const log = await run(['api', `repos/${assertRepo(repo)}/actions/jobs/${assertRunId(jobId)}/logs`])
+  const seen = new Set<string>()
+  for (const match of log.matchAll(/https:\/\/([^\s/]+)\/projects\/([^/\s]+)\/refs\//g)) {
+    const linkHost = match[1].toLowerCase()
+    if (linkHost === host) return decodeURIComponent(match[2])
+    seen.add(linkHost)
+  }
+  if (seen.size > 0) throw new FossaHostMismatch([...seen].sort(), host)
   return undefined
 }
 

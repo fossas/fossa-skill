@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { assertRepo, assertRunId, fossaHost, projectFromJobLog, resolveRepo } from '../github.ts'
+import { FossaHostMismatch, assertRepo, assertRunId, projectFromJobLog, resolveRepo } from '../github.ts'
+import { FossaClient, hostOf } from '../fossa.ts'
 
 test('assertRepo accepts owner/name and rejects path traversal and flags', () => {
   assert.equal(assertRepo('fossas/fossa-skill'), 'fossas/fossa-skill')
@@ -35,7 +36,22 @@ test('projectFromJobLog takes the first FOSSA-host link and skips links on other
   ].join('\n')
   const run = async () => log
   assert.equal(await projectFromJobLog(run, 'o/r', '123', 'app.fossa.com'), 'custom+42/github.com/o/r')
-  assert.equal(await projectFromJobLog(run, 'o/r', '123', 'fossa.example.internal'), undefined)
-  assert.equal(fossaHost('https://fossa.example.internal:8443/'), 'fossa.example.internal:8443')
-  assert.equal(fossaHost(), 'app.fossa.com')
+  // Same log read with another configured host: the links are there but on the wrong host, which is reported, not hidden.
+  await assert.rejects(projectFromJobLog(run, 'o/r', '123', 'fossa.example.internal'), FossaHostMismatch)
+  assert.equal(hostOf('https://fossa.example.internal:8443/'), 'fossa.example.internal:8443')
+  assert.equal(hostOf('fossa.acme.internal'), 'fossa.acme.internal') // scheme-less, as FossaClient accepts it
+  assert.equal(new FossaClient({ apiKey: 'k', fetch: async () => new Response('{}') }).host, 'app.fossa.com')
+  assert.equal(new FossaClient({ apiKey: 'k', endpoint: 'HTTPS://Fossa.Test/', fetch: async () => new Response('{}') }).host, 'fossa.test')
+})
+
+test('projectFromJobLog reports FOSSA links on another host instead of silently finding nothing', async () => {
+  const run = async () => 'https://fossa.acme.io/projects/custom%2B42%2Fx/refs/branch/main/abc\nhttps://FOSSA.acme.io/projects/custom%2B42%2Fy/refs/branch/main/abc'
+  await assert.rejects(projectFromJobLog(run, 'o/r', '1', 'app.fossa.com'), (err: unknown) => {
+    assert.ok(err instanceof FossaHostMismatch)
+    assert.deepEqual(err.hostsSeen, ['fossa.acme.io'])
+    assert.match(err.message, /fossa\.acme\.io.*FOSSA_ENDPOINT is app\.fossa\.com/)
+    return true
+  })
+  // No FOSSA link at all is still "nothing found", not a mismatch.
+  assert.equal(await projectFromJobLog(async () => 'no links here', 'o/r', '1', 'app.fossa.com'), undefined)
 })

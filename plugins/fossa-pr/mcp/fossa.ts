@@ -72,12 +72,21 @@ const CACHE_TTL_MS = 10 * 60 * 1000
 const SCAN_WAITS_MS = [3000, 6000, 12000]
 const MAX_RETRY_AFTER_MS = 60_000
 const SERVER_ERROR_WAITS_MS = [2000, 5000]
+export const DEFAULT_ENDPOINT = 'https://app.fossa.com'
+// The host part of an endpoint; FossaClient accepts a scheme-less endpoint, URL does not.
+export function hostOf(endpoint: string): string {
+  return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(endpoint) ? endpoint : `https://${endpoint}`).host.toLowerCase()
+}
 
 const realSleep: Sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 export class FossaClient {
   private apiKey: string
   private endpoint: string
+  // The host FOSSA links in CI logs must be on to be taken as this deployment's.
+  get host(): string {
+    return hostOf(this.endpoint)
+  }
   private fetch: Fetch
   private sleep: Sleep
   private now: () => number
@@ -98,7 +107,7 @@ export class FossaClient {
 
   constructor(options: ClientOptions) {
     this.apiKey = options.apiKey
-    this.endpoint = (options.endpoint ?? 'https://app.fossa.com').replace(/\/+$/, '')
+    this.endpoint = (options.endpoint ?? DEFAULT_ENDPOINT).replace(/\/+$/, '')
     this.fetch = options.fetch ?? ((url, init) => fetch(url, init))
     this.sleep = options.sleep ?? realSleep
     this.now = options.now ?? Date.now
@@ -177,10 +186,14 @@ export class FossaClient {
   // An ignore changes what every revision of the project reports, so every
   // cached answer for the project goes.
   forgetProject(projectLocator: string): void {
-    // The locator ends where a revision ($), the next query field (&), or the
-    // key ends, so a longer project name with the same start is kept.
-    const encoded = encodeURIComponent(projectLocator).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const ofProject = new RegExp(`${encoded}(%24|&|$)`)
+    // Path keys (/api/cli/<locator>/issues) use encodeURIComponent; query keys
+    // (projectLocator=<locator>) use URLSearchParams, which writes a space as +.
+    // The locator starts after a path / or a query =, and ends where a revision ($),
+    // the next query field (&), or the key ends, so a longer project name that
+    // embeds or extends it is kept.
+    const forms = [encodeURIComponent(projectLocator), new URLSearchParams({ p: projectLocator }).toString().slice(2)]
+    const alternatives = forms.map(form => form.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+    const ofProject = new RegExp(`(?:^|[/=])(?:${alternatives})(%24|&|$)`)
     for (const key of this.cache.keys()) {
       if (ofProject.test(key)) this.cache.delete(key)
     }

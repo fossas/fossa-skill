@@ -4,7 +4,7 @@
 import { IGNORE_REASONS, FossaApiError, categoryOf, parseLocator } from './fossa.ts'
 import type { Category, Issue, PrReport } from '../types/index.d.ts'
 import type { CliIssue, FossaClient, IgnoreReason, IssuesResult } from './fossa.ts'
-import { mergeBase, projectFromJobLog, pullRequest, rerunFailed, resolveRepo } from './github.ts'
+import { mergeBase, projectFromJobLog, pullRequest, rerunFailed, resolveRepo, FossaHostMismatch } from './github.ts'
 import type { Run } from './github.ts'
 
 export const WIDGET_URI = 'ui://fossa-pr/issues.html'
@@ -221,7 +221,10 @@ export async function prReport(deps: Deps, repoArg: string | undefined, prArg: n
   let projectLocator = `custom+${orgId}/github.com/${repo}`
   let head = await fossa.revisionIssues(`${projectLocator}$${pr.headSha}`)
   if (head.kind === 'not-found' && pr.fossaCheck?.jobId) {
-    const fromLog = await projectFromJobLog(deps.gh, repo, pr.fossaCheck.jobId).catch(() => undefined)
+    const fromLog = await projectFromJobLog(deps.gh, repo, pr.fossaCheck.jobId, fossa.host).catch(err => {
+      if (err instanceof FossaHostMismatch) throw err
+      return undefined // the log is gone or unreadable: fall back to the default locator
+    })
     if (fromLog) {
       // The job log is third-party content (PR-controlled text can echo into it), so a scraped locator is
       // only trusted when it names the key's own org: any FOSSA project locator of the form
