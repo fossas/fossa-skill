@@ -119,6 +119,11 @@ export const register: Register = on => {
             {r.issues.length} {r.issues.length === 1 ? 'issue' : 'issues'}: {compared}
           </Text>
         )}
+        {(r.warnings ?? []).map((warning, i) => (
+          <Text key={`warning-${i}`} dimColor wrap="wrap">
+            {warning}
+          </Text>
+        ))}
 
         {r.issues.map(issue => (
           <Box key={`issue-${issue.id}`} flexDirection="column">
@@ -406,9 +411,10 @@ function reportOf(result: Partial<McpToolResult>): PrReport | undefined {
 
 // One line for the transcript: the pane shows the rest.
 function summaryOf(r: PrReport): string {
+  const warn = r.warnings?.length ? ` ${r.warnings.join(' ')}` : ''
   const head = `${r.repo}#${r.pr}`
-  if (r.status === 'waiting') return `${head}: FOSSA is still scanning this commit.`
-  if (r.status === 'not-analyzed') return `${head}: FOSSA has no analysis of this commit.`
+  if (r.status === 'waiting') return `${head}: FOSSA is still scanning this commit.${warn}`
+  if (r.status === 'not-analyzed') return `${head}: FOSSA has no analysis of this commit.${warn}`
   const n = r.issues.length
   if (n === 0) return `${head}: no FOSSA issues.`
   const fresh = r.issues.filter(issue => issue.isNew).length

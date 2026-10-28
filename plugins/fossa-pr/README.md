@@ -1,6 +1,6 @@
 # fossa-pr
 
-See the FOSSA issues on a GitHub pull request, then fix, ignore, or hand each one to fossabot, without opening the FOSSA web app.
+See the FOSSA issues on a GitHub pull request, then fix, ignore, or request a fossabot upgrade PR for eligible dependency vulnerabilities, without opening the FOSSA web app.
 
 One folder is a plugin for both Claude Code and Codex:
 

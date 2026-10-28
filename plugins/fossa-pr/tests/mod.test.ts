@@ -258,3 +258,18 @@ test('a dismissed ignore question changes nothing', async ($, on) => {
   expect(await ui.find({ key: 'fix-7' })).toBeDefined()
   await ui.unmount()
 })
+
+test('report warnings show in the pane body and survive a rerun', async ($, on) => {
+  const warned = { ...REPORT, status: 'not-analyzed', issues: [], warnings: ['The CI job log links FOSSA projects only on hosts other than fossa.test (log text, not verified): fossa.acme.io. If your CI uploads to one of them, check FOSSA_ENDPOINT.'] }
+  on('mcp.call', { tool: 'fossa_pr_issues' }, () => ({ value: { content: [{ type: 'text', text: JSON.stringify(warned) }], isError: false } }))
+  on('mcp.call', { tool: 'fossa_rerun_check' }, () => ({ value: { content: [{ type: 'text', text: 'rerun' }], isError: false } }))
+  fakes(on, [])
+  const answer = await $.command.run({ command: 'fossa-pr', args: 'acme/api#166' })
+  expect(answer.text).toContain('only on hosts other than fossa.test')
+  const ui = await $.ui.mount({ plugin: 'fossa-pr', surface: 'terminal', ...(PANE as any) })
+  expect(await ui.find({ type: 'Text', text: /only on hosts other than fossa\.test/ })).toBeDefined()
+  await ui.press({ key: 'rerun' })
+  expect(await ui.find({ type: 'Text', text: /running again/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /only on hosts other than fossa\.test/ })).toBeDefined()
+  await ui.unmount()
+})

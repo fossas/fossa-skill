@@ -68,7 +68,10 @@ export async function pullRequest(run: Run, repo: string, pr: number | undefined
 const REPO_RE = /^[\w.-]+\/[\w.-]+$/
 const RUN_ID_RE = /^\d+$/
 export function assertRepo(repo: string): string {
-  if (!REPO_RE.test(repo)) throw new Error(`Invalid repository "${repo}": expected owner/name.`)
+  // owner/name with no dot segments: `../repo` or `owner/..` would otherwise walk the REST path.
+  if (!REPO_RE.test(repo) || repo.split('/').some(part => part === '.' || part === '..')) {
+    throw new Error(`Invalid repository "${repo}": expected owner/name.`)
+  }
   return repo
 }
 export function assertRunId(runId: string): string {
@@ -87,10 +90,37 @@ export async function mergeBase(run: Run, repo: string, baseRef: string, headSha
 // `fossa analyze` prints the project's dashboard link, which holds the
 // project locator. Used when the locator is not the default one, for example
 // when CI passes --project or the repo has a .fossa.yml.
-export async function projectFromJobLog(run: Run, repo: string, jobId: string): Promise<string | undefined> {
+// Only links on this deployment's FOSSA host count (the client's endpoint host), so a PR-controlled
+// log line that mentions some other site's /projects/…/refs/ link is skipped, not adopted. What
+// survives: a same-host link echoed into the log BEFORE the analyze step still wins (first match) —
+// the org check in tools.ts is the remaining guard, and the user confirms every write.
+// The log named FOSSA projects, but none on this deployment's host: either a misconfigured
+// FOSSA_ENDPOINT or PR-controlled text. The caller shows it as a note on the report, not as a failure.
+export class FossaHostMismatch extends Error {
+  readonly hostsSeen: string[]
+  readonly configured: string
+  constructor(hostsSeen: string[], configured: string) {
+    // The hosts are PR-controlled log text: shown as data (capped, truncated), never as an instruction.
+    const printable = (host: string) => (/^[A-Za-z0-9.:_-]+$/.test(host) ? host : '(unprintable host)')
+    const shown = hostsSeen.slice(0, 3).map(host => (host.length > 100 ? `${printable(host.slice(0, 100))}…` : printable(host)))
+    const more = hostsSeen.length > 3 ? ` and ${hostsSeen.length - 3} more` : ''
+    super(
+      `The CI job log links FOSSA projects only on hosts other than ${configured} (log text, not verified): ${shown.join(', ')}${more}. If your CI uploads to one of them, check FOSSA_ENDPOINT.`,
+    )
+    this.hostsSeen = hostsSeen
+    this.configured = configured
+  }
+}
+export async function projectFromJobLog(run: Run, repo: string, jobId: string, host: string): Promise<string | undefined> {
   const log = await run(['api', `repos/${assertRepo(repo)}/actions/jobs/${assertRunId(jobId)}/logs`])
-  const match = log.match(/https:\/\/[^\s/]+\/projects\/([^/\s]+)\/refs\//)
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined
+  const seen = new Set<string>()
+  for (const match of log.matchAll(/https:\/\/([^\s/]+)\/projects\/([^/\s]+)\/refs\//g)) {
+    const linkHost = match[1].toLowerCase()
+    if (linkHost === host) return decodeURIComponent(match[2])
+    seen.add(linkHost)
+  }
+  if (seen.size > 0) throw new FossaHostMismatch([...seen].sort(), host)
+  return undefined
 }
 
 export async function rerunFailed(run: Run, repo: string, runId: string): Promise<void> {

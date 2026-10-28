@@ -49,7 +49,7 @@ plugins/
 
 ## Plugin: fossa-pr (Claude Code and Codex)
 
-`plugins/fossa-pr` shows the FOSSA issues on a GitHub pull request, for example when the FOSSA CI check fails. It marks the issues the PR brought in, and lets you explain, fix, ignore, or hand each one to fossabot without opening the FOSSA web app. In Claude Code it opens a pane with buttons; in Codex Desktop it shows a widget.
+`plugins/fossa-pr` shows the FOSSA issues on a GitHub pull request, for example when the FOSSA CI check fails. It marks the issues the PR brought in, and lets you explain, fix, ignore, or request a fossabot upgrade PR for eligible dependency vulnerabilities, without opening the FOSSA web app. In Claude Code it opens a pane with buttons; in Codex Desktop it shows a widget.
 
 It runs a small local MCP server with no dependencies (Node 22.18 or later). The server uses your full FOSSA API token and your `gh` login, and paces and caches its calls to FOSSA.
 

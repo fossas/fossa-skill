@@ -188,6 +188,8 @@ function render() {
     el('span', { class: 'mono muted' }, report.headSha.slice(0, 7)),
   ));
 
+  // Notes that do not fail the report (for example FOSSA links in the CI log on another host).
+  (report.warnings || []).forEach(w => app.append(el('p', { class: 'muted' }, w)));
   if (report.status !== 'scanned') {
     app.append(el('p', { class: 'muted' }, report.status === 'waiting'
       ? 'FOSSA is still scanning this commit.'

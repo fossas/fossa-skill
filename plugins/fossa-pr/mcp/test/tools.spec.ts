@@ -91,15 +91,27 @@ test('marks the issues the PR brought in', async () => {
 
 test('finds a project with another name in the CI log', async () => {
   const project = 'custom+42/my-custom-name'
-  const log = `2026-01-01T00:00:00.0000000Z     https://app.fossa.com/projects/custom%2b42%2fmy-custom-name/refs/branch/x/${HEAD}\n`
+  const log = `2026-01-01T00:00:00.0000000Z     https://fossa.test/projects/custom%2b42%2fmy-custom-name/refs/branch/x/${HEAD}\n`
   const { client } = fakeFossa({ [`${project}$${HEAD}`]: { status: 'SCANNED', count: 0, issues: [] } })
   const report = await prReport({ fossa: () => client, gh: fakeGh(log), cwd: '.' }, 'acme/api', 166)
   assert.equal(report.projectLocator, project)
   assert.equal(report.status, 'scanned')
 })
 
+test('a FOSSA link on another host in the CI log is reported, not silently ignored', async () => {
+  const log = `2026-01-01T00:00:00Z     https://fossa.acme.io/projects/custom%2b42%2fmy-custom-name/refs/branch/x/${HEAD}\n`
+  const { client } = fakeFossa({})
+  const result = await callTool({ fossa: () => client, gh: fakeGh(log), cwd: '.' }, 'fossa_pr_issues', { repo: 'acme/api', pr: 166 })
+  // Not a failure: the report stands (not-analyzed under the default locator) and carries the note.
+  assert.notEqual(result.isError, true)
+  assert.match(firstText(result), /has no analysis of this commit/)
+  assert.match(firstText(result), /only on hosts other than fossa\.test \(log text, not verified\): fossa\.acme\.io\./)
+  assert.doesNotMatch(firstText(result), /set FOSSA_ENDPOINT to/)
+  assert.deepEqual((result.structuredContent as { warnings?: string[] }).warnings?.length, 1)
+})
+
 test('names both orgs when the key is from another org than CI uploads to', async () => {
-  const log = `2026-01-01T00:00:00Z     https://app.fossa.com/projects/custom%2b42%2fgithub.com%2facme%2fapi/refs/branch/x/${HEAD}\n`
+  const log = `2026-01-01T00:00:00Z     https://fossa.test/projects/custom%2b42%2fgithub.com%2facme%2fapi/refs/branch/x/${HEAD}\n`
   const { client } = fakeFossa({}, 7)
   const result = await callTool({ fossa: () => client, gh: fakeGh(log), cwd: '.' }, 'fossa_pr_issues', { repo: 'acme/api', pr: 166 })
   assert.equal(result.isError, true)
