@@ -68,6 +68,8 @@ curl -s -H "Authorization: Bearer $FOSSA_API_KEY" \
 
 Optional query params on step 3: `team`, `title`, `branch` (default `master`), `policy` / `policyId`, `releaseGroup`+`releaseGroupRelease` (paired), `dependency=true` to import as a dependency rather than a top-level project. Orgs with require-team-on-upload must pass `team`.
 
+Permissions surface at step 1: since FOSSA `d7ac5a3133` (develop 2026-10-27; code at `b51a25a5a1`) `signed_url` computes the `sbom+{orgId}/{NAME}` locator and answers `403 You are not permitted to upload to this project.` unless the token has Project **Edit** on that project when it already exists, or Project **Create** in some scope when it is new (`routes/components.ts:128-139`, `modules/ProjectManager/index.ts:275-311`; an SBOM is always checked as a top-level project, `isDependency: false`). Step 3 no longer carries its own blanket project-create gate (`routes/components.ts:50-53`), so an Edit-only user can re-import to an existing SBOM project.
+
 CLI equivalent: `fossa sbom analyze <file>` (`-p`/`-r` override the filename/timestamp defaults; `--force-rescan` re-analyzes an uploaded revision), then `fossa sbom test <file>` gates like `fossa test`.
 
 ## Verify and clean up
