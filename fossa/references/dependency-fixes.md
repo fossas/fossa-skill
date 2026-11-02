@@ -79,6 +79,8 @@ PUT /api/revisions/{REV}/dependencies/{OLD_DEP}/ignore
 
 The unknown count drops; the corrected dep carries the license data.
 
+The ignore is a locked write to the project's `transitive_excludes` (CORE-7769, FOSSA `d3fb75597e`; code at develop `b51a25a5a1`, `routes/revisions/revisions.ts:1128-1159`): a revision outside your org 404s `Revision for locator (…) was not found` (`:1133-1135`, CORE-7732), re-ignoring an already-ignored locator leaves the list unchanged (still 200 `[]`, still audit-logged as `IGNORE_DEPENDENCY` and recounted — `:1143-1155`), and while FOSSA's ignore-event ramp is on for the deployment (`kafkaEvents:ignoredDependencyEventsEnabled`, `modules/KafkaEvents/projects/ignoredDependencies.ts:28-29`) a locator that would grow the list past **5000 entries, or is longer than 512 UTF-8 bytes**, is refused with 400 `A project can ignore at most 5000 dependencies, and each locator can be at most 512 bytes.` (`routes/revisions/revisions.ts:398-410`, `shared/ignoredDependencies.ts:8-11, 22-30`). The same bound applies to a `transitive_excludes` list sent through `PUT /api/projects/{PROJECT}` (`routes/projects/utils.ts:41-51`) and is restated in the published spec (`docs/swagger/paths/projects/locator.yaml:470, 753`). Code-traced only — not live-probed (write path).
+
 **If Step B failed**, remove the added dep so you don't leave clutter, and re-derive:
 
 ```
