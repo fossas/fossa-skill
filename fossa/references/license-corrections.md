@@ -63,20 +63,21 @@ Body (essentials): `dependencyRevisionLocator`, the concluded `licenseId`, and a
 
 **Promote a local conclusion to the whole organization** — optional `replaceScope` (**documented**, CORE-7665, FOSSA `3a51a8b60e`, 2026-10-12): only valid when `scope.scope` is `organization` (otherwise 400 `replaceScope is only allowed with the organization scope` — `routes/licenseConclusions/validators.ts:81-84`). Send the project/revision/release-group/release scope the conclusion currently lives at; the organization row is seeded from the licenses concluded _there_ (`licenseConclusions.ts:195`, `seedScope` in `modules/LicenseManager/conclusions.ts:393`, read at `:419`), and that scope's own rows are deleted in the same transaction so the org conclusion shows through — a `revision` replaceScope also removes its project's row, a `release` one also removes its release group's (`getOutrankingScopes`, `licenseConclusions.ts:118-143`; transaction `:246-252`). Without `replaceScope`, an org-scope conclude leaves any project/release-group conclusion in place and that one keeps outranking the org's (priority ladder below).
 
-**`conclude` appends, `unconclude` removes, neither replaces.** The upsert reads the licenses already concluded at the scope (`seedScope ?? scope`), adds or deletes the one `licenseId` in that set, and writes the whole set back (`modules/LicenseManager/conclusions.ts:417-435`, written at `:446` / `:462`; code at FOSSA master `b0c4f460cf`, 2026-11-04). That read is the same priority-ladder query the read-back uses, so the first write at a scope that has no row of its own starts from whatever is effective there (for a revision or release scope its parent project or release-group row, then the organization row, then global, then a Legal Agent row where the organization has one, then FOSSA's base row, `scope IS NULL`, priority 0 at `:119-126`, always in the candidate set at `:144-146`), i.e. the set the read-back would show at that scope. So "replace X with Y" is two calls with the same scope object: `conclude` Y, then `unconclude` X; otherwise you ship `X AND Y`. Live 2026-11-05, org 32098, `mvn+jakarta.activation:jakarta.activation-api$2.1.4`, base `["GPL-2.0-with-classpath-exception"]`: `conclude` `BSD-3-Clause` at `{"scope": "project", "projectLocator": …}` → HTTP 201 with `concludedLicenses: ["GPL-2.0-with-classpath-exception", "BSD-3-Clause"]`, and the SPDX export rendered `licenseConcluded: GPL-2.0-only WITH Classpath-exception-2.0 AND BSD-3-Clause`; `unconclude` the GPL id at the same scope → `["BSD-3-Clause"]`.
+**`conclude` appends, `unconclude` removes, neither replaces.** The upsert reads the licenses already concluded at the scope (`seedScope ?? scope`), adds or deletes the one `licenseId` in that set, and writes the whole set back (`modules/LicenseManager/conclusions.ts:417-435`, written at `:446` / `:462`; code at FOSSA master `b0c4f460cf`, 2026-11-04). That read is the same priority-ladder query the read-back uses, so the first write at a scope that has no row of its own starts from whatever is effective there (for a revision or release scope its parent project or release-group row, then the organization row, then global, then, on a `legalAgent`-flagged org, a Legal Agent scoped row at priority 1, then the one base row, `scope IS NULL`, priority 0 (`:119-126`): FOSSA's standard row, or on a flagged org the Legal Agent's own base row, with no fallback between them (`:144-146`, `:231-232`; see "Read-back shape" below)), i.e. the set the read-back would show at that scope. So "replace X with Y" is two calls with the same scope object: `conclude` Y, then `unconclude` X; otherwise you ship `X AND Y`. Live 2026-11-05, org 32098, `mvn+jakarta.activation:jakarta.activation-api$2.1.4`, base `["GPL-2.0-with-classpath-exception"]`: `conclude` `BSD-3-Clause` at `{"scope": "project", "projectLocator": …}` → HTTP 201 with `concludedLicenses: ["GPL-2.0-with-classpath-exception", "BSD-3-Clause"]`, and the SPDX export rendered `licenseConcluded: GPL-2.0-only WITH Classpath-exception-2.0 AND BSD-3-Clause`; `unconclude` the GPL id at the same scope → `["BSD-3-Clause"]`.
 
 ```bash
-# replace X with Y at project scope: two calls, same scope. curl -f turns a 4xx into a failure and the && keeps a
-# failed conclude from running the unconclude. Works in bash and zsh.
+# replace X with Y at project scope: two calls, same scope. --fail-with-body (curl >= 7.76) fails the call on a 4xx
+# and still returns the body, so a validator issues list reaches stderr; the && keeps a failed conclude from
+# running the unconclude. Works in bash and zsh.
 DEP='mvn+jakarta.activation:jakarta.activation-api$2.1.4'
 PROJ='custom+1234/my-project'
 concl() {
-  local out
-  out=$(curl -sf -X PUT -H "Authorization: Bearer $FOSSA_API_KEY" -H 'Content-Type: application/json' \
+  local out rc
+  out=$(curl -s --fail-with-body -X PUT -H "Authorization: Bearer $FOSSA_API_KEY" -H 'Content-Type: application/json' \
     "https://app.fossa.com/api/license-conclusions/$1" \
     -d "$(jq -cn --arg dep "$DEP" --arg lic "$2" --arg proj "$PROJ" \
           '{dependencyRevisionLocator:$dep, licenseId:$lic, scope:{scope:"project", projectLocator:$proj}}')") \
-    || { echo "$1 $2 failed (curl exit $?)" >&2; return 1; }
+    || { rc=$?; echo "$1 $2 failed (curl exit $rc)" >&2; printf '%s\n' "$out" >&2; return 1; }
   printf '%s\n' "$out" | jq -c .concludedLicenses
 }
 concl conclude BSD-3-Clause && concl unconclude GPL-2.0-with-classpath-exception

@@ -45,7 +45,7 @@ GET /api/projects/{PROJECT}/revisions  # list scanned revisions (newest first)
 - **Deleting a project is a soft delete** (`DELETE /api/projects/{PROJECT}`, needs Project Delete; bulk form `DELETE /api/v2/projects?locators[]=…`): the row stays, `organizationId` is nulled at once and the organization's rows are swept by a queued job, so the project still answers 200 for a couple of minutes, and a `fossa analyze` upload to the same `custom+` locator revives the old row while an SBOM re-import of the same name 403s. Receipts and the clean re-scan rule: `sbom-import.md` → "Verify and clean up".
 - Update revision metadata (link, author): `PATCH /api/revisions/{REV}` (documented). Note there is no useful bare GET on that exact path in the current API docs; for package metadata use the endpoints in `packages.md`.
 
-(source: FOSSA develop `5a248a1963`, 2026-10-28 — `routes/projects/updateProject.ts` allowlist :55-111, `bom_public_id` strip :331-340, special-permission fields :349-374, omit/pick :385-397; `routes/projectsV2/index.ts:212-225`; `modules/PolicyManager/index.ts:816-820`, `:839`. Live-observed 2026-09-10 by asalminen: the singular policy fields round-trip; everything else traced.)
+(source: FOSSA develop `5a248a1963`, 2026-10-28 — `routes/projects/updateProject.ts` allowlist :55-111, `bom_public_id` strip :331-340, special-permission fields :349-374, omit/pick :385-397; `routes/projectsV2/index.ts:212-225`; `modules/PolicyManager/index.ts:816-820`, `:839`. Live-observed 2026-09-10 by asalminen: the singular policy fields round-trip; everything else traced. Soft-delete bullet: master `b0c4f460cf`, live 2026-11-05; receipts in `sbom-import.md`.)
 
 ## Teams
 
