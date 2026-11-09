@@ -20,7 +20,7 @@ Walks the directory, discovers projects per ecosystem (30+ strategies: npm/yarn/
 
 **Static vs dynamic strategies**: lockfile parsing is static; Gradle/Go-style managers need working build tooling (JDK, resolvable repos) — **a broken build env can yield ZERO dependencies with exit 0**. If the scan summary shows a project skipped or empty, that's the first suspect. `--static-only-analysis` trades completeness for not needing the build env; `--strict` refuses fallbacks. Preview what will be scanned: `fossa list-targets`.
 
-**Default filters** skip `node_modules/`, `vendor/`, `test(s)/`, `docs/`, `examples/`, `third[-_]party/`, etc. — scope with `--only-target`/`--exclude-target`/`--only-path`/`--exclude-path`, or `--without-default-filters`.
+**Default filters** skip `node_modules/`, `vendor/`, `test(s)/`, `docs/`, `examples/`, `third[-_]party/`, etc. — scope with `--only-target`/`--exclude-target`/`--only-path`/`--exclude-path`, or `--without-default-filters`. The next fossa-cli release after 3.20.10 also skips `.build/` (the SwiftPM build directory) and resolves a Swift package's graph with `swift package show-dependencies --format json` first, which may fetch dependencies over the network, falling back to parsing `Package.swift` + `Package.resolved` with a warning (`--static-only-analysis` or `--strict` uses only the parser; ANE-3094, fossa-cli `d6752622`, Changelog "Unreleased"; `src/Discovery/Filters.hs`, `docs/references/strategies/platforms/ios/swift.md`, `docs/references/subcommands/analyze.md:317`).
 
 **The three first-party-code engines** (commonly confused — distinct features):
 
