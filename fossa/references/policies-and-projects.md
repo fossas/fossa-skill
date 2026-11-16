@@ -135,6 +135,20 @@ Body: `{ "title": …, "projects": [{projectId, revisionId, branch}, …], "proj
 - Removal is explicit: list the project locators in `projectsToDelete`. A project can't appear in both arrays (400).
 - Re-sending an existing project (e.g. with a new `revisionId`) updates it and queues a rescan of it within the release.
 
+**Delete releases** (destructive, with no undo; confirm with the user first):
+
+```
+DELETE /api/project_group/{groupId}/release/{releaseId}     # one release → 200
+DELETE /api/project_group/{groupId}/releases                # several at once → 201 (added 2026-11, CORE-7285)
+```
+
+The bulk route takes a JSON body in exactly one of two shapes; any other key is a 400 (`deleteReleasesRequestBodyValidator`, a union of strict objects, `shared/releaseGroups/index.ts:43-52`):
+
+- `{ "ids": [101, 102] }`: release ids, positive integers, at least one. Ids that are not releases of this group are skipped without an error, because the selection is scoped to the group.
+- `{ "filters": { "search": "rc" } }`: every release whose `title` contains the text, case-insensitive, with `%` and `_` matched literally. `{ "filters": {} }` selects every release.
+
+A selection that covers every release of the group is rejected with 400 `A release group must always contain at least one release.` and nothing is deleted, so `{ "filters": {} }` always fails. Both routes need edit permission on the release group (403 otherwise). Get the ids from `GET /api/project_group/{groupId}/releases`, and read that list again afterwards to confirm. (`routes/projectGroups.ts:1282-1327` single, `:1335-1400` bulk, at develop `e8d3a7ce37`. Code-verified only: neither delete was run live. A 404 on the bulk route means the deployment predates it, so delete one release at a time.)
+
 **Read:**
 
 ```
