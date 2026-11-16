@@ -135,6 +135,26 @@ Body: `{ "title": …, "projects": [{projectId, revisionId, branch}, …], "proj
 - Removal is explicit: list the project locators in `projectsToDelete`. A project can't appear in both arrays (400).
 - Re-sending an existing project (e.g. with a new `revisionId`) updates it and queues a rescan of it within the release.
 
+**Delete releases** (destructive, with no undo; confirm with the user first):
+
+```
+DELETE /api/project_group/{groupId}/release/{releaseId}     # one release → 200
+DELETE /api/project_group/{groupId}/releases                # several at once → 201 (added 2026-11, CORE-7285)
+```
+
+The bulk route takes a JSON body in exactly one of two shapes; any other key is a 400 (`deleteReleasesRequestBodyValidator`, a union of strict objects, `shared/releaseGroups/index.ts:43-52`):
+
+- `{ "ids": [101, 102] }`: release ids, positive integers, at least one. Ids that are not releases of this group are skipped without an error, because the selection is scoped to the group.
+- `{ "filters": { "search": "rc" } }`: every release whose `title` contains the text, case-insensitive, with `%`, `_` and `\` matched literally. The text is trimmed and must not be empty (400). `{ "filters": {} }` selects every release.
+
+On the bulk route, a selection that covers every release of the group is rejected with 400 `A release group must always contain at least one release.` and nothing is deleted, so `{ "filters": {} }` always fails (`routes/projectGroups.ts:1372-1375`). It checks permission first (403), then the group (404), then the body (400). The two routes differ in ways that matter:
+
+- **The single-release route has no such guard.** It deletes a group's last release and returns 200, and the code notes there is no UI to recover a group with no releases. Never delete the last remaining release; when deleting one at a time, stop while one is left.
+- **Only the single-release route re-syncs `RELEASE_GROUP_AND_PROJECTS` ignore rules** (`:1319-1324`; see `scans-and-issues.md`). The bulk route deletes and emits the delete events but makes no sync call (`:1359-1398`). After a bulk delete that removes the latest release, those ignores stay as they were until the new latest release is scanned, so rescan it.
+- **A 200 or 201 does not confirm that anything was deleted.** A release id that matches nothing in the group is a silent no-op on both routes.
+
+Both routes need edit permission on the release group (403 otherwise). Get the ids from `GET /api/project_group/{groupId}/releases`, and read that list again afterwards to confirm. (`routes/projectGroups.ts:1282-1327` single, `:1335-1400` bulk, at develop `e8d3a7ce37`. Code-verified only: neither delete was run live. A 404 on the bulk route means the deployment predates it, so delete one release at a time, keeping the last one.)
+
 **Read:**
 
 ```
