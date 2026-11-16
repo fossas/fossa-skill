@@ -48,7 +48,7 @@ enc() { jq -rn --arg v "$1" '$v|@uri'; }
 
 1. **Read before write.** Fetch the current state of anything you're about to mutate; confirm the target with the user if there's any ambiguity about which project/org you're operating on.
 2. **Read back after write.** An HTTP 200 is not verification — re-fetch and confirm the change landed as intended. Each reference names the exact read-back endpoint for its writes.
-3. **Paginate.** List endpoints cap the page size server-side regardless of what you request (100 on the dependencies list, up to 1000 elsewhere) — always loop pages until you've collected `total`; never trust one page to be the full set.
+3. **Paginate.** Most list endpoints silently clamp the page size (100 on the dependencies list, up to 1000 elsewhere), but `/api/v2/release-groups` rejects `count` above 50 with a 400 (`Invalid value for param 'count'`) — always loop pages until you've collected `total`; never trust one page to be the full set.
 4. **Be patient with async.** Report generation and issue rescans run on queues (30s–70min depending on the operation). Poll; don't declare failure on the first empty result. Each reference states the expected latency.
 5. **Bulk writes need a plan file, a one-item test gate, and an append-only checkpoint** — run one, read it back, then run the rest, logging each completion so an interrupted run resumes without double-writing. Details in `references/license-corrections.md`.
 6. **Destructive or org-visible actions** (ignoring issues, overwriting dependencies, editing policies) — state what you're about to change and how many items it touches BEFORE doing it, and prefer a single-item trial when the user's ask is bulk.
